@@ -7,19 +7,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.brightroom.garage.shared.model.bucket.BucketListItem
 import net.brightroom.garage.web.api.ApiClient
 import net.brightroom.garage.web.components.LoadingIndicator
 import net.brightroom.garage.web.navigation.Screen
 
-@Composable
-fun S3BrowserScreen(onNavigate: (Screen) -> Unit) {
-    var buckets by remember { mutableStateOf<List<BucketListItem>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
+@Stable
+class S3BrowserState(private val scope: CoroutineScope) {
+    var buckets by mutableStateOf<List<BucketListItem>>(emptyList())
+        private set
+    var loading by mutableStateOf(true)
+        private set
 
-    LaunchedEffect(Unit) {
+    fun refresh() {
         scope.launch {
             try {
                 buckets = ApiClient.json.decodeFromString<List<BucketListItem>>(ApiClient.get("/buckets"))
@@ -27,13 +29,40 @@ fun S3BrowserScreen(onNavigate: (Screen) -> Unit) {
             loading = false
         }
     }
+}
 
+@Composable
+fun rememberS3BrowserState(): S3BrowserState {
+    val scope = rememberCoroutineScope()
+    return remember { S3BrowserState(scope) }
+}
+
+@Composable
+fun S3BrowserScreen(onNavigate: (Screen) -> Unit) {
+    val state = rememberS3BrowserState()
+
+    LaunchedEffect(Unit) { state.refresh() }
+
+    S3BrowserContent(
+        buckets = state.buckets,
+        loading = state.loading,
+        onNavigate = onNavigate,
+    )
+}
+
+@Composable
+fun S3BrowserContent(
+    buckets: List<BucketListItem>,
+    loading: Boolean,
+    modifier: Modifier = Modifier,
+    onNavigate: (Screen) -> Unit,
+) {
     if (loading) {
         LoadingIndicator()
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(24.dp)) {
         Text(
             "S3 Object Browser",
             style = MaterialTheme.typography.headlineMedium,
@@ -66,7 +95,7 @@ fun S3BrowserScreen(onNavigate: (Screen) -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Text("Browse →", color = MaterialTheme.colorScheme.primary)
+                    Text("Browse ->", color = MaterialTheme.colorScheme.primary)
                 }
             }
         }

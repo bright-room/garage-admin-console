@@ -8,9 +8,10 @@ import androidx.compose.ui.Modifier
 fun AppScaffold(
     currentScreen: Screen,
     onNavigate: (Screen) -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    Row(modifier = Modifier.fillMaxSize()) {
+    Row(modifier = modifier.fillMaxSize()) {
         Sidebar(
             currentScreen = currentScreen,
             onNavigate = onNavigate,

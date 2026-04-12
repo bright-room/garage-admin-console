@@ -10,23 +10,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.brightroom.garage.shared.model.admintoken.AdminTokenInfo
 import net.brightroom.garage.shared.model.admintoken.CreateAdminTokenResponse
 import net.brightroom.garage.web.api.ApiClient
 import net.brightroom.garage.web.components.*
 
-@Composable
-fun AdminTokenListScreen() {
-    var tokens by remember { mutableStateOf<List<AdminTokenInfo>>(emptyList()) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var createdToken by remember { mutableStateOf<CreateAdminTokenResponse?>(null) }
-    var deleteTarget by remember { mutableStateOf<AdminTokenInfo?>(null) }
-    val scope = rememberCoroutineScope()
+@Stable
+class AdminTokenListState(private val scope: CoroutineScope) {
+    var tokens by mutableStateOf<List<AdminTokenInfo>>(emptyList())
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
+    var createdToken by mutableStateOf<CreateAdminTokenResponse?>(null)
+        private set
+    var showCreateDialog by mutableStateOf(false)
+    var deleteTarget by mutableStateOf<AdminTokenInfo?>(null)
 
-    fun loadData() {
+    fun refresh() {
         scope.launch {
             loading = true
             error = null
@@ -39,15 +43,94 @@ fun AdminTokenListScreen() {
         }
     }
 
-    LaunchedEffect(Unit) { loadData() }
+    fun createToken(name: String, scopeList: List<String>) {
+        scope.launch {
+            try {
+                val scopeJson = scopeList.joinToString(",") { "\"$it\"" }
+                val result = ApiClient.post("/admin-tokens", """{"name":"$name","scope":[$scopeJson]}""")
+                createdToken = ApiClient.json.decodeFromString<CreateAdminTokenResponse>(result)
+                showCreateDialog = false
+                refresh()
+            } catch (e: Exception) {
+                error = "Create failed: ${e.message}"
+            }
+        }
+    }
 
+    fun deleteToken(token: AdminTokenInfo) {
+        scope.launch {
+            try {
+                ApiClient.delete("/admin-tokens/${token.id}")
+                refresh()
+            } catch (e: Exception) {
+                error = "Delete failed: ${e.message}"
+            }
+        }
+        deleteTarget = null
+    }
+
+    fun dismissCreatedToken() {
+        createdToken = null
+    }
+}
+
+@Composable
+fun rememberAdminTokenListState(): AdminTokenListState {
+    val scope = rememberCoroutineScope()
+    return remember { AdminTokenListState(scope) }
+}
+
+@Composable
+fun AdminTokenListScreen() {
+    val state = rememberAdminTokenListState()
+
+    LaunchedEffect(Unit) { state.refresh() }
+
+    AdminTokenListContent(
+        tokens = state.tokens,
+        error = state.error,
+        loading = state.loading,
+        createdToken = state.createdToken,
+        showCreateDialog = state.showCreateDialog,
+        deleteTarget = state.deleteTarget,
+        onRefresh = state::refresh,
+        onShowCreateDialog = { state.showCreateDialog = true },
+        onDismissCreateDialog = { state.showCreateDialog = false },
+        onCreateToken = state::createToken,
+        onDeleteTarget = { state.deleteTarget = it },
+        onDismissDeleteDialog = { state.deleteTarget = null },
+        onDeleteToken = state::deleteToken,
+        onDismissCreatedToken = state::dismissCreatedToken,
+    )
+}
+
+@Composable
+fun AdminTokenListContent(
+    tokens: List<AdminTokenInfo>,
+    error: String?,
+    loading: Boolean,
+    createdToken: CreateAdminTokenResponse?,
+    showCreateDialog: Boolean,
+    deleteTarget: AdminTokenInfo?,
+    modifier: Modifier = Modifier,
+    onRefresh: () -> Unit,
+    onShowCreateDialog: () -> Unit,
+    onDismissCreateDialog: () -> Unit,
+    onCreateToken: (name: String, scope: List<String>) -> Unit,
+    onDeleteTarget: (AdminTokenInfo) -> Unit,
+    onDismissDeleteDialog: () -> Unit,
+    onDeleteToken: (AdminTokenInfo) -> Unit,
+    onDismissCreatedToken: () -> Unit,
+) {
     if (loading && tokens.isEmpty()) {
         LoadingIndicator()
         return
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp)
             .verticalScroll(rememberScrollState()),
     ) {
         Row(
@@ -57,8 +140,8 @@ fun AdminTokenListScreen() {
         ) {
             Text("Admin Tokens (${tokens.size})", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { showCreateDialog = true }) { Text("Create Token") }
-                OutlinedButton(onClick = { loadData() }) { Text("Refresh") }
+                Button(onClick = onShowCreateDialog) { Text("Create Token") }
+                OutlinedButton(onClick = onRefresh) { Text("Refresh") }
             }
         }
 
@@ -79,7 +162,7 @@ fun AdminTokenListScreen() {
                         CopyButton(ct.secretToken)
                     }
                     Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = { createdToken = null }) { Text("Dismiss") }
+                    TextButton(onClick = onDismissCreatedToken) { Text("Dismiss") }
                 }
             }
         }
@@ -110,7 +193,7 @@ fun AdminTokenListScreen() {
                     ) {
                         StatusChip(if (token.expired) "unavailable" else "healthy")
                         TextButton(
-                            onClick = { deleteTarget = token },
+                            onClick = { onDeleteTarget(token) },
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                         ) {
                             Text("Delete")
@@ -123,20 +206,8 @@ fun AdminTokenListScreen() {
 
     if (showCreateDialog) {
         CreateAdminTokenDialog(
-            onDismiss = { showCreateDialog = false },
-            onCreate = { name, scope_list ->
-                scope.launch {
-                    try {
-                        val scopeJson = scope_list.joinToString(",") { "\"$it\"" }
-                        val result = ApiClient.post("/admin-tokens", """{"name":"$name","scope":[$scopeJson]}""")
-                        createdToken = ApiClient.json.decodeFromString<CreateAdminTokenResponse>(result)
-                        showCreateDialog = false
-                        loadData()
-                    } catch (e: Exception) {
-                        error = "Create failed: ${e.message}"
-                    }
-                }
-            },
+            onDismiss = onDismissCreateDialog,
+            onCreate = onCreateToken,
         )
     }
 
@@ -147,18 +218,8 @@ fun AdminTokenListScreen() {
             confirmLabel = "Delete",
             destructive = true,
             typeToConfirm = token.name,
-            onConfirm = {
-                scope.launch {
-                    try {
-                        ApiClient.delete("/admin-tokens/${token.id}")
-                        loadData()
-                    } catch (e: Exception) {
-                        error = "Delete failed: ${e.message}"
-                    }
-                }
-                deleteTarget = null
-            },
-            onDismiss = { deleteTarget = null },
+            onConfirm = { onDeleteToken(token) },
+            onDismiss = onDismissDeleteDialog,
         )
     }
 }

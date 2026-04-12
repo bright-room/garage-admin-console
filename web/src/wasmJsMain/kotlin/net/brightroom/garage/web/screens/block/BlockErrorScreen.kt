@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import net.brightroom.garage.shared.model.block.BlockError
@@ -18,16 +19,23 @@ import net.brightroom.garage.web.components.ConfirmDialog
 import net.brightroom.garage.web.components.ErrorBanner
 import net.brightroom.garage.web.components.LoadingIndicator
 
-@Composable
-fun BlockErrorScreen() {
-    var blockErrors by remember { mutableStateOf<Map<String, List<BlockError>>>(emptyMap()) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var actionMessage by remember { mutableStateOf<String?>(null) }
-    var showPurgeDialog by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+@Stable
+class BlockErrorState(private val scope: CoroutineScope) {
+    var blockErrors by mutableStateOf<Map<String, List<BlockError>>>(emptyMap())
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
+    var actionMessage by mutableStateOf<String?>(null)
+        private set
+    var showPurgeDialog by mutableStateOf(false)
 
-    fun loadData() {
+    val totalErrors: Int by derivedStateOf {
+        blockErrors.values.sumOf { it.size }
+    }
+
+    fun refresh() {
         scope.launch {
             loading = true
             error = null
@@ -44,15 +52,91 @@ fun BlockErrorScreen() {
         }
     }
 
-    LaunchedEffect(Unit) { loadData() }
+    fun retryAll() {
+        scope.launch {
+            try {
+                ApiClient.post("/blocks/retry-resync", """{"all":true}""")
+                actionMessage = "Retry resync for all blocks queued"
+                refresh()
+            } catch (e: Exception) {
+                error = "Retry failed: ${e.message}"
+            }
+        }
+    }
 
+    fun purge() {
+        scope.launch {
+            try {
+                val allHashes = blockErrors.values.flatten().map { it.blockHash }
+                val hashesJson = allHashes.joinToString(",") { "\"$it\"" }
+                ApiClient.post("/blocks/purge", "[$hashesJson]")
+                actionMessage = "Purge completed"
+                refresh()
+            } catch (e: Exception) {
+                error = "Purge failed: ${e.message}"
+            }
+        }
+        showPurgeDialog = false
+    }
+
+    fun dismissActionMessage() {
+        actionMessage = null
+    }
+}
+
+@Composable
+fun rememberBlockErrorState(): BlockErrorState {
+    val scope = rememberCoroutineScope()
+    return remember { BlockErrorState(scope) }
+}
+
+@Composable
+fun BlockErrorScreen() {
+    val state = rememberBlockErrorState()
+
+    LaunchedEffect(Unit) { state.refresh() }
+
+    BlockErrorContent(
+        blockErrors = state.blockErrors,
+        totalErrors = state.totalErrors,
+        error = state.error,
+        loading = state.loading,
+        actionMessage = state.actionMessage,
+        showPurgeDialog = state.showPurgeDialog,
+        onRefresh = state::refresh,
+        onRetryAll = state::retryAll,
+        onShowPurgeDialog = { state.showPurgeDialog = true },
+        onDismissPurgeDialog = { state.showPurgeDialog = false },
+        onPurge = state::purge,
+        onDismissActionMessage = state::dismissActionMessage,
+    )
+}
+
+@Composable
+fun BlockErrorContent(
+    blockErrors: Map<String, List<BlockError>>,
+    totalErrors: Int,
+    error: String?,
+    loading: Boolean,
+    actionMessage: String?,
+    showPurgeDialog: Boolean,
+    modifier: Modifier = Modifier,
+    onRefresh: () -> Unit,
+    onRetryAll: () -> Unit,
+    onShowPurgeDialog: () -> Unit,
+    onDismissPurgeDialog: () -> Unit,
+    onPurge: () -> Unit,
+    onDismissActionMessage: () -> Unit,
+) {
     if (loading && blockErrors.isEmpty()) {
         LoadingIndicator()
         return
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp)
             .verticalScroll(rememberScrollState()),
     ) {
         Row(
@@ -62,22 +146,12 @@ fun BlockErrorScreen() {
         ) {
             Text("Block Errors", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        try {
-                            ApiClient.post("/blocks/retry-resync", """{"all":true}""")
-                            actionMessage = "Retry resync for all blocks queued"
-                            loadData()
-                        } catch (e: Exception) {
-                            error = "Retry failed: ${e.message}"
-                        }
-                    }
-                }) { Text("Retry All") }
+                OutlinedButton(onClick = onRetryAll) { Text("Retry All") }
                 OutlinedButton(
-                    onClick = { showPurgeDialog = true },
+                    onClick = onShowPurgeDialog,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) { Text("Purge") }
-                OutlinedButton(onClick = { loadData() }) { Text("Refresh") }
+                OutlinedButton(onClick = onRefresh) { Text("Refresh") }
             }
         }
 
@@ -93,12 +167,11 @@ fun BlockErrorScreen() {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(it, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    TextButton(onClick = { actionMessage = null }) { Text("Dismiss") }
+                    TextButton(onClick = onDismissActionMessage) { Text("Dismiss") }
                 }
             }
         }
 
-        val totalErrors = blockErrors.values.sumOf { it.size }
         if (totalErrors == 0) {
             Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                 Text("No block errors", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
@@ -156,22 +229,8 @@ fun BlockErrorScreen() {
             confirmLabel = "Purge",
             destructive = true,
             typeToConfirm = "PURGE",
-            onConfirm = {
-                scope.launch {
-                    try {
-                        // Collect all block hashes
-                        val allHashes = blockErrors.values.flatten().map { it.blockHash }
-                        val hashesJson = allHashes.joinToString(",") { "\"$it\"" }
-                        ApiClient.post("/blocks/purge", "[$hashesJson]")
-                        actionMessage = "Purge completed"
-                        loadData()
-                    } catch (e: Exception) {
-                        error = "Purge failed: ${e.message}"
-                    }
-                }
-                showPurgeDialog = false
-            },
-            onDismiss = { showPurgeDialog = false },
+            onConfirm = onPurge,
+            onDismiss = onDismissPurgeDialog,
         )
     }
 }

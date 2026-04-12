@@ -11,24 +11,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import net.brightroom.garage.shared.model.s3.S3ObjectItem
 import net.brightroom.garage.shared.model.s3.S3ObjectList
 import net.brightroom.garage.web.api.ApiClient
 import net.brightroom.garage.web.components.*
 import net.brightroom.garage.web.navigation.Screen
 
-@Composable
-fun ObjectBrowserScreen(bucketId: String, bucketAlias: String, onNavigate: (Screen) -> Unit) {
-    var prefix by remember { mutableStateOf("") }
-    var objectList by remember { mutableStateOf<S3ObjectList?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var showUploadDialog by remember { mutableStateOf(false) }
-    var deleteTarget by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
+@Stable
+class ObjectBrowserState(
+    private val bucketId: String,
+    private val scope: CoroutineScope,
+) {
+    var prefix by mutableStateOf("")
+    var objectList by mutableStateOf<S3ObjectList?>(null)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
+    var showUploadDialog by mutableStateOf(false)
+    var deleteTarget by mutableStateOf<String?>(null)
 
-    fun loadData() {
+    fun refresh() {
         scope.launch {
             loading = true
             error = null
@@ -44,9 +49,79 @@ fun ObjectBrowserScreen(bucketId: String, bucketAlias: String, onNavigate: (Scre
         }
     }
 
-    LaunchedEffect(prefix) { loadData() }
+    fun deleteObject(key: String) {
+        scope.launch {
+            try {
+                ApiClient.delete("/s3/$bucketId/objects?key=$key")
+                refresh()
+            } catch (e: Exception) {
+                error = "Delete failed: ${e.message}"
+            }
+        }
+        deleteTarget = null
+    }
 
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+    fun onUploadComplete() {
+        showUploadDialog = false
+        refresh()
+    }
+}
+
+@Composable
+fun rememberObjectBrowserState(bucketId: String): ObjectBrowserState {
+    val scope = rememberCoroutineScope()
+    return remember(bucketId) { ObjectBrowserState(bucketId, scope) }
+}
+
+@Composable
+fun ObjectBrowserScreen(bucketId: String, bucketAlias: String, onNavigate: (Screen) -> Unit) {
+    val state = rememberObjectBrowserState(bucketId)
+
+    LaunchedEffect(state.prefix) { state.refresh() }
+
+    ObjectBrowserContent(
+        bucketId = bucketId,
+        bucketAlias = bucketAlias,
+        prefix = state.prefix,
+        objectList = state.objectList,
+        error = state.error,
+        loading = state.loading,
+        showUploadDialog = state.showUploadDialog,
+        deleteTarget = state.deleteTarget,
+        onPrefixChange = { state.prefix = it },
+        onRefresh = state::refresh,
+        onNavigate = onNavigate,
+        onShowUploadDialog = { state.showUploadDialog = true },
+        onDismissUploadDialog = { state.showUploadDialog = false },
+        onUploadComplete = state::onUploadComplete,
+        onDeleteTarget = { state.deleteTarget = it },
+        onDismissDeleteDialog = { state.deleteTarget = null },
+        onDeleteObject = state::deleteObject,
+    )
+}
+
+@Composable
+fun ObjectBrowserContent(
+    bucketId: String,
+    bucketAlias: String,
+    prefix: String,
+    objectList: S3ObjectList?,
+    error: String?,
+    loading: Boolean,
+    showUploadDialog: Boolean,
+    deleteTarget: String?,
+    modifier: Modifier = Modifier,
+    onPrefixChange: (String) -> Unit,
+    onRefresh: () -> Unit,
+    onNavigate: (Screen) -> Unit,
+    onShowUploadDialog: () -> Unit,
+    onDismissUploadDialog: () -> Unit,
+    onUploadComplete: () -> Unit,
+    onDeleteTarget: (String) -> Unit,
+    onDismissDeleteDialog: () -> Unit,
+    onDeleteObject: (String) -> Unit,
+) {
+    Column(modifier = modifier.fillMaxSize().padding(24.dp)) {
         // Header
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -67,10 +142,10 @@ fun ObjectBrowserScreen(bucketId: String, bucketAlias: String, onNavigate: (Scre
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { showUploadDialog = true }) {
+                Button(onClick = onShowUploadDialog) {
                     Text("Upload")
                 }
-                OutlinedButton(onClick = { loadData() }) {
+                OutlinedButton(onClick = onRefresh) {
                     Text("Refresh")
                 }
             }
@@ -79,7 +154,7 @@ fun ObjectBrowserScreen(bucketId: String, bucketAlias: String, onNavigate: (Scre
         Spacer(Modifier.height(12.dp))
 
         // Breadcrumb
-        Breadcrumb(prefix = prefix, onNavigate = { prefix = it })
+        Breadcrumb(prefix = prefix, onNavigate = onPrefixChange)
 
         Spacer(Modifier.height(12.dp))
         error?.let { ErrorBanner(it) }
@@ -95,13 +170,13 @@ fun ObjectBrowserScreen(bucketId: String, bucketAlias: String, onNavigate: (Scre
             objectList?.commonPrefixes?.forEach { cp ->
                 Row(
                     modifier = Modifier.fillMaxWidth()
-                        .clickable { prefix = cp }
+                        .clickable { onPrefixChange(cp) }
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("📁", style = MaterialTheme.typography.bodyLarge)
+                        Text("\uD83D\uDCC1", style = MaterialTheme.typography.bodyLarge)
                         Text(
                             cp.removePrefix(prefix),
                             style = MaterialTheme.typography.bodyMedium,
@@ -124,7 +199,7 @@ fun ObjectBrowserScreen(bucketId: String, bucketAlias: String, onNavigate: (Scre
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text("📄", style = MaterialTheme.typography.bodyLarge)
+                        Text("\uD83D\uDCC4", style = MaterialTheme.typography.bodyLarge)
                         Text(
                             obj.key.removePrefix(prefix),
                             style = MaterialTheme.typography.bodyMedium,
@@ -149,7 +224,7 @@ fun ObjectBrowserScreen(bucketId: String, bucketAlias: String, onNavigate: (Scre
                             Text("Download")
                         }
                         TextButton(
-                            onClick = { deleteTarget = obj.key },
+                            onClick = { onDeleteTarget(obj.key) },
                             colors = ButtonDefaults.textButtonColors(
                                 contentColor = MaterialTheme.colorScheme.error,
                             ),
@@ -175,11 +250,8 @@ fun ObjectBrowserScreen(bucketId: String, bucketAlias: String, onNavigate: (Scre
     if (showUploadDialog) {
         UploadDialog(
             currentPrefix = prefix,
-            onDismiss = { showUploadDialog = false },
-            onUpload = { key ->
-                showUploadDialog = false
-                loadData()
-            },
+            onDismiss = onDismissUploadDialog,
+            onUpload = { onUploadComplete() },
             bucketId = bucketId,
         )
     }
@@ -190,25 +262,20 @@ fun ObjectBrowserScreen(bucketId: String, bucketAlias: String, onNavigate: (Scre
             message = "Delete \"$key\"?",
             confirmLabel = "Delete",
             destructive = true,
-            onConfirm = {
-                scope.launch {
-                    try {
-                        ApiClient.delete("/s3/$bucketId/objects?key=$key")
-                        loadData()
-                    } catch (e: Exception) {
-                        error = "Delete failed: ${e.message}"
-                    }
-                }
-                deleteTarget = null
-            },
-            onDismiss = { deleteTarget = null },
+            onConfirm = { onDeleteObject(key) },
+            onDismiss = onDismissDeleteDialog,
         )
     }
 }
 
 @Composable
-private fun Breadcrumb(prefix: String, onNavigate: (String) -> Unit) {
+private fun Breadcrumb(
+    prefix: String,
+    modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit,
+) {
     Row(
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {

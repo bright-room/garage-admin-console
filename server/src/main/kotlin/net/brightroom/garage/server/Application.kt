@@ -1,17 +1,16 @@
 package net.brightroom.garage.server
 
-import io.ktor.server.cio.*
-import io.ktor.server.engine.*
+import io.ktor.server.cio.EngineMain
 import net.brightroom.garage.server.plugins.*
 
-fun main() {
-    val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
+fun main(args: Array<String>) {
+    EngineMain.main(args)
+}
 
-    embeddedServer(CIO, port = port) {
-        configureDi()
-        configureSerialization()
-        configureStatusPages()
-        configureRouting()
-        configureStaticFiles()
-    }.start(wait = true)
+fun io.ktor.server.application.Application.module() {
+    configureDi()
+    configureSerialization()
+    configureStatusPages()
+    configureRouting()
+    configureStaticFiles()
 }

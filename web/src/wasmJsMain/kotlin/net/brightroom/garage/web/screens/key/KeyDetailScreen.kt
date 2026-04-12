@@ -10,22 +10,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.brightroom.garage.shared.model.key.KeyInfo
 import net.brightroom.garage.web.api.ApiClient
 import net.brightroom.garage.web.components.*
 import net.brightroom.garage.web.navigation.Screen
 
-@Composable
-fun KeyDetailScreen(keyId: String, onNavigate: (Screen) -> Unit) {
-    var keyInfo by remember { mutableStateOf<KeyInfo?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var showSecret by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+@Stable
+class KeyDetailState(
+    private val keyId: String,
+    private val scope: CoroutineScope,
+) {
+    var keyInfo by mutableStateOf<KeyInfo?>(null)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
+    var showSecret by mutableStateOf(false)
+    var showDeleteDialog by mutableStateOf(false)
 
-    fun loadData(withSecret: Boolean = false) {
+    fun refresh(withSecret: Boolean = false) {
         scope.launch {
             loading = true
             error = null
@@ -41,15 +47,75 @@ fun KeyDetailScreen(keyId: String, onNavigate: (Screen) -> Unit) {
         }
     }
 
-    LaunchedEffect(keyId) { loadData() }
+    fun revealSecret() {
+        showSecret = true
+        refresh(withSecret = true)
+    }
 
+    fun deleteKey(onNavigate: (Screen) -> Unit) {
+        scope.launch {
+            try {
+                ApiClient.delete("/keys/$keyId")
+                onNavigate(Screen.Keys)
+            } catch (e: Exception) {
+                error = "Delete failed: ${e.message}"
+            }
+        }
+        showDeleteDialog = false
+    }
+}
+
+@Composable
+fun rememberKeyDetailState(keyId: String): KeyDetailState {
+    val scope = rememberCoroutineScope()
+    return remember(keyId) { KeyDetailState(keyId, scope) }
+}
+
+@Composable
+fun KeyDetailScreen(keyId: String, onNavigate: (Screen) -> Unit) {
+    val state = rememberKeyDetailState(keyId)
+
+    LaunchedEffect(keyId) { state.refresh() }
+
+    KeyDetailContent(
+        keyId = keyId,
+        keyInfo = state.keyInfo,
+        error = state.error,
+        loading = state.loading,
+        showSecret = state.showSecret,
+        showDeleteDialog = state.showDeleteDialog,
+        onNavigate = onNavigate,
+        onRevealSecret = state::revealSecret,
+        onShowDeleteDialog = { state.showDeleteDialog = true },
+        onDismissDeleteDialog = { state.showDeleteDialog = false },
+        onDeleteKey = { state.deleteKey(onNavigate) },
+    )
+}
+
+@Composable
+fun KeyDetailContent(
+    keyId: String,
+    keyInfo: KeyInfo?,
+    error: String?,
+    loading: Boolean,
+    showSecret: Boolean,
+    showDeleteDialog: Boolean,
+    modifier: Modifier = Modifier,
+    onNavigate: (Screen) -> Unit,
+    onRevealSecret: () -> Unit,
+    onShowDeleteDialog: () -> Unit,
+    onDismissDeleteDialog: () -> Unit,
+    onDeleteKey: () -> Unit,
+) {
     if (loading && keyInfo == null) {
         LoadingIndicator()
         return
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp)
             .verticalScroll(rememberScrollState()),
     ) {
         Row(
@@ -71,7 +137,7 @@ fun KeyDetailScreen(keyId: String, onNavigate: (Screen) -> Unit) {
                 )
             }
             OutlinedButton(
-                onClick = { showDeleteDialog = true },
+                onClick = onShowDeleteDialog,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
             ) {
                 Text("Delete")
@@ -100,11 +166,8 @@ fun KeyDetailScreen(keyId: String, onNavigate: (Screen) -> Unit) {
                             Text(k.secretAccessKey!!, fontFamily = FontFamily.Monospace)
                             CopyButton(k.secretAccessKey!!)
                         } else {
-                            Text("••••••••", fontFamily = FontFamily.Monospace)
-                            TextButton(onClick = {
-                                showSecret = true
-                                loadData(withSecret = true)
-                            }) {
+                            Text("\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022", fontFamily = FontFamily.Monospace)
+                            TextButton(onClick = onRevealSecret) {
                                 Text("Show")
                             }
                         }
@@ -168,26 +231,21 @@ fun KeyDetailScreen(keyId: String, onNavigate: (Screen) -> Unit) {
             confirmLabel = "Delete",
             destructive = true,
             typeToConfirm = keyInfo?.name ?: keyId,
-            onConfirm = {
-                scope.launch {
-                    try {
-                        ApiClient.delete("/keys/$keyId")
-                        onNavigate(Screen.Keys)
-                    } catch (e: Exception) {
-                        error = "Delete failed: ${e.message}"
-                    }
-                }
-                showDeleteDialog = false
-            },
-            onDismiss = { showDeleteDialog = false },
+            onConfirm = onDeleteKey,
+            onDismiss = onDismissDeleteDialog,
         )
     }
 }
 
 @Composable
-private fun PermLabel(label: String, enabled: Boolean) {
+private fun PermLabel(
+    label: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
     Text(
         label,
+        modifier = modifier,
         fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal,
         color = if (enabled) MaterialTheme.colorScheme.primary
         else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),

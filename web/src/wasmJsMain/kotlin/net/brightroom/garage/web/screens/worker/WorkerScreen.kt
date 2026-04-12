@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import net.brightroom.garage.web.api.ApiClient
@@ -16,16 +17,18 @@ import net.brightroom.garage.web.components.ErrorBanner
 import net.brightroom.garage.web.components.LoadingIndicator
 import net.brightroom.garage.web.components.StatusChip
 
-@Composable
-fun WorkerScreen() {
-    var workers by remember { mutableStateOf<JsonObject?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var busyOnly by remember { mutableStateOf(false) }
-    var errorOnly by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+@Stable
+class WorkerState(private val scope: CoroutineScope) {
+    var workers by mutableStateOf<JsonObject?>(null)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
+    var busyOnly by mutableStateOf(false)
+    var errorOnly by mutableStateOf(false)
 
-    fun loadData() {
+    fun refresh() {
         scope.launch {
             loading = true
             error = null
@@ -43,11 +46,48 @@ fun WorkerScreen() {
             loading = false
         }
     }
+}
 
-    LaunchedEffect(busyOnly, errorOnly) { loadData() }
+@Composable
+fun rememberWorkerState(): WorkerState {
+    val scope = rememberCoroutineScope()
+    return remember { WorkerState(scope) }
+}
 
+@Composable
+fun WorkerScreen() {
+    val state = rememberWorkerState()
+
+    LaunchedEffect(state.busyOnly, state.errorOnly) { state.refresh() }
+
+    WorkerContent(
+        workers = state.workers,
+        error = state.error,
+        loading = state.loading,
+        busyOnly = state.busyOnly,
+        errorOnly = state.errorOnly,
+        onBusyOnlyChange = { state.busyOnly = it },
+        onErrorOnlyChange = { state.errorOnly = it },
+        onRefresh = state::refresh,
+    )
+}
+
+@Composable
+fun WorkerContent(
+    workers: JsonObject?,
+    error: String?,
+    loading: Boolean,
+    busyOnly: Boolean,
+    errorOnly: Boolean,
+    modifier: Modifier = Modifier,
+    onBusyOnlyChange: (Boolean) -> Unit,
+    onErrorOnlyChange: (Boolean) -> Unit,
+    onRefresh: () -> Unit,
+) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp)
             .verticalScroll(rememberScrollState()),
     ) {
         Row(
@@ -56,17 +96,17 @@ fun WorkerScreen() {
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Workers", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            OutlinedButton(onClick = { loadData() }) { Text("Refresh") }
+            OutlinedButton(onClick = onRefresh) { Text("Refresh") }
         }
 
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = busyOnly, onCheckedChange = { busyOnly = it })
+                Checkbox(checked = busyOnly, onCheckedChange = onBusyOnlyChange)
                 Text("Busy only")
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = errorOnly, onCheckedChange = { errorOnly = it })
+                Checkbox(checked = errorOnly, onCheckedChange = onErrorOnlyChange)
                 Text("Errors only")
             }
         }

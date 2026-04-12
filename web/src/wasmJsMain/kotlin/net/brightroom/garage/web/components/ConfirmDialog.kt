@@ -11,10 +11,10 @@ fun ConfirmDialog(
     title: String,
     message: String,
     confirmLabel: String = "Confirm",
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
     destructive: Boolean = false,
     typeToConfirm: String? = null,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     var typedText by remember { mutableStateOf("") }
     val canConfirm = typeToConfirm == null || typedText == typeToConfirm

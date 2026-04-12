@@ -10,30 +10,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import net.brightroom.garage.web.api.ApiClient
 import net.brightroom.garage.web.components.ErrorBanner
 import net.brightroom.garage.web.components.LoadingIndicator
 
-@Composable
-fun NodeScreen() {
-    var nodeInfo by remember { mutableStateOf<JsonObject?>(null) }
-    var statistics by remember { mutableStateOf<String?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var actionMessage by remember { mutableStateOf<String?>(null) }
-    var showRepairDialog by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+@Stable
+class NodeState(private val scope: CoroutineScope) {
+    var nodeInfo by mutableStateOf<JsonObject?>(null)
+        private set
+    var statistics by mutableStateOf<String?>(null)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
+    var actionMessage by mutableStateOf<String?>(null)
+        private set
+    var showRepairDialog by mutableStateOf(false)
 
-    fun loadData() {
+    fun refresh() {
         scope.launch {
             loading = true
             error = null
             try {
                 nodeInfo = ApiClient.json.decodeFromString<JsonObject>(ApiClient.get("/nodes/info"))
                 val statsResponse = ApiClient.json.decodeFromString<JsonObject>(ApiClient.get("/nodes/statistics"))
-                // Extract freeform text from the success responses
                 val successMap = statsResponse["success"]?.jsonObject
                 statistics = successMap?.values?.firstOrNull()?.let { value ->
                     value.jsonObject["freeform"]?.jsonPrimitive?.content
@@ -45,15 +49,87 @@ fun NodeScreen() {
         }
     }
 
-    LaunchedEffect(Unit) { loadData() }
+    fun snapshot() {
+        scope.launch {
+            try {
+                ApiClient.post("/nodes/snapshot", "{}")
+                actionMessage = "Metadata snapshot created"
+            } catch (e: Exception) {
+                error = "Snapshot failed: ${e.message}"
+            }
+        }
+    }
 
+    fun repair(repairType: String) {
+        scope.launch {
+            try {
+                ApiClient.post("/nodes/repair", """{"repair":"$repairType"}""")
+                actionMessage = "Repair operation '$repairType' launched"
+                showRepairDialog = false
+            } catch (e: Exception) {
+                error = "Repair failed: ${e.message}"
+            }
+        }
+    }
+
+    fun dismissActionMessage() {
+        actionMessage = null
+    }
+}
+
+@Composable
+fun rememberNodeState(): NodeState {
+    val scope = rememberCoroutineScope()
+    return remember { NodeState(scope) }
+}
+
+@Composable
+fun NodeScreen() {
+    val state = rememberNodeState()
+
+    LaunchedEffect(Unit) { state.refresh() }
+
+    NodeContent(
+        nodeInfo = state.nodeInfo,
+        statistics = state.statistics,
+        error = state.error,
+        loading = state.loading,
+        actionMessage = state.actionMessage,
+        showRepairDialog = state.showRepairDialog,
+        onRefresh = state::refresh,
+        onSnapshot = state::snapshot,
+        onShowRepairDialog = { state.showRepairDialog = true },
+        onDismissRepairDialog = { state.showRepairDialog = false },
+        onRepair = state::repair,
+        onDismissActionMessage = state::dismissActionMessage,
+    )
+}
+
+@Composable
+fun NodeContent(
+    nodeInfo: JsonObject?,
+    statistics: String?,
+    error: String?,
+    loading: Boolean,
+    actionMessage: String?,
+    showRepairDialog: Boolean,
+    modifier: Modifier = Modifier,
+    onRefresh: () -> Unit,
+    onSnapshot: () -> Unit,
+    onShowRepairDialog: () -> Unit,
+    onDismissRepairDialog: () -> Unit,
+    onRepair: (String) -> Unit,
+    onDismissActionMessage: () -> Unit,
+) {
     if (loading && nodeInfo == null) {
         LoadingIndicator()
         return
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp)
             .verticalScroll(rememberScrollState()),
     ) {
         Row(
@@ -63,18 +139,9 @@ fun NodeScreen() {
         ) {
             Text("Nodes", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        try {
-                            ApiClient.post("/nodes/snapshot", "{}")
-                            actionMessage = "Metadata snapshot created"
-                        } catch (e: Exception) {
-                            error = "Snapshot failed: ${e.message}"
-                        }
-                    }
-                }) { Text("Snapshot") }
-                OutlinedButton(onClick = { showRepairDialog = true }) { Text("Repair") }
-                OutlinedButton(onClick = { loadData() }) { Text("Refresh") }
+                OutlinedButton(onClick = onSnapshot) { Text("Snapshot") }
+                OutlinedButton(onClick = onShowRepairDialog) { Text("Repair") }
+                OutlinedButton(onClick = onRefresh) { Text("Refresh") }
             }
         }
 
@@ -90,7 +157,7 @@ fun NodeScreen() {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(it, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    TextButton(onClick = { actionMessage = null }) { Text("Dismiss") }
+                    TextButton(onClick = onDismissActionMessage) { Text("Dismiss") }
                 }
             }
         }
@@ -135,25 +202,19 @@ fun NodeScreen() {
 
     if (showRepairDialog) {
         RepairDialog(
-            onDismiss = { showRepairDialog = false },
-            onRepair = { repairType ->
-                scope.launch {
-                    try {
-                        ApiClient.post("/nodes/repair", """{"repair":"$repairType"}""")
-                        actionMessage = "Repair operation '$repairType' launched"
-                        showRepairDialog = false
-                    } catch (e: Exception) {
-                        error = "Repair failed: ${e.message}"
-                    }
-                }
-            },
+            onDismiss = onDismissRepairDialog,
+            onRepair = onRepair,
         )
     }
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
-    Row(modifier = Modifier.padding(vertical = 2.dp)) {
+private fun InfoRow(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier = modifier.padding(vertical = 2.dp)) {
         Text("$label: ", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyMedium)
     }

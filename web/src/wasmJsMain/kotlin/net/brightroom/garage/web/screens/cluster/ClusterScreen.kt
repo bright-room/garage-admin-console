@@ -9,21 +9,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.brightroom.garage.shared.model.cluster.ClusterStatus
 import net.brightroom.garage.shared.model.cluster.NodeResp
 import net.brightroom.garage.web.api.ApiClient
 import net.brightroom.garage.web.components.*
 
-@Composable
-fun ClusterScreen() {
-    var status by remember { mutableStateOf<ClusterStatus?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var showConnectDialog by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+@Stable
+class ClusterState(private val scope: CoroutineScope) {
+    var status by mutableStateOf<ClusterStatus?>(null)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
+    var showConnectDialog by mutableStateOf(false)
 
-    fun loadData() {
+    fun refresh() {
         scope.launch {
             loading = true
             error = null
@@ -36,15 +39,64 @@ fun ClusterScreen() {
         }
     }
 
-    LaunchedEffect(Unit) { loadData() }
+    fun connectNode(address: String) {
+        scope.launch {
+            try {
+                ApiClient.post("/cluster/connect", "[\"$address\"]")
+                showConnectDialog = false
+                refresh()
+            } catch (e: Exception) {
+                error = e.message
+            }
+        }
+    }
+}
 
+@Composable
+fun rememberClusterState(): ClusterState {
+    val scope = rememberCoroutineScope()
+    return remember { ClusterState(scope) }
+}
+
+@Composable
+fun ClusterScreen() {
+    val state = rememberClusterState()
+
+    LaunchedEffect(Unit) { state.refresh() }
+
+    ClusterContent(
+        status = state.status,
+        error = state.error,
+        loading = state.loading,
+        showConnectDialog = state.showConnectDialog,
+        onRefresh = state::refresh,
+        onShowConnectDialog = { state.showConnectDialog = true },
+        onDismissConnectDialog = { state.showConnectDialog = false },
+        onConnectNode = state::connectNode,
+    )
+}
+
+@Composable
+fun ClusterContent(
+    status: ClusterStatus?,
+    error: String?,
+    loading: Boolean,
+    showConnectDialog: Boolean,
+    modifier: Modifier = Modifier,
+    onRefresh: () -> Unit,
+    onShowConnectDialog: () -> Unit,
+    onDismissConnectDialog: () -> Unit,
+    onConnectNode: (String) -> Unit,
+) {
     if (loading && status == null) {
         LoadingIndicator()
         return
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp)
             .verticalScroll(rememberScrollState()),
     ) {
         Row(
@@ -58,10 +110,10 @@ fun ClusterScreen() {
                 fontWeight = FontWeight.Bold,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { showConnectDialog = true }) {
+                OutlinedButton(onClick = onShowConnectDialog) {
                     Text("Connect Node")
                 }
-                OutlinedButton(onClick = { loadData() }) {
+                OutlinedButton(onClick = onRefresh) {
                     Text("Refresh")
                 }
             }
@@ -131,29 +183,23 @@ fun ClusterScreen() {
 
     if (showConnectDialog) {
         ConnectNodeDialog(
-            onDismiss = { showConnectDialog = false },
-            onConnect = { address ->
-                scope.launch {
-                    try {
-                        ApiClient.post("/cluster/connect", "[\"$address\"]")
-                        showConnectDialog = false
-                        loadData()
-                    } catch (e: Exception) {
-                        error = e.message
-                    }
-                }
-            },
+            onDismiss = onDismissConnectDialog,
+            onConnect = onConnectNode,
         )
     }
 }
 
 @Composable
-private fun DiskUsageBar(available: Long, total: Long) {
+private fun DiskUsageBar(
+    available: Long,
+    total: Long,
+    modifier: Modifier = Modifier,
+) {
     val usedRatio = if (total > 0) 1.0f - (available.toFloat() / total.toFloat()) else 0f
     val usedText = formatSize(total - available)
     val totalText = formatSize(total)
 
-    Column {
+    Column(modifier = modifier) {
         LinearProgressIndicator(
             progress = { usedRatio },
             modifier = Modifier.fillMaxWidth().height(6.dp),

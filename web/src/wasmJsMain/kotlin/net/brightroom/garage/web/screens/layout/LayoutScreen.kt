@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import net.brightroom.garage.shared.model.layout.ClusterLayout
@@ -18,17 +19,20 @@ import net.brightroom.garage.shared.model.layout.StagedRoleChange
 import net.brightroom.garage.web.api.ApiClient
 import net.brightroom.garage.web.components.*
 
-@Composable
-fun LayoutScreen() {
-    var layout by remember { mutableStateOf<ClusterLayout?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var showAssignDialog by remember { mutableStateOf(false) }
-    var showHistoryDialog by remember { mutableStateOf(false) }
-    var actionMessage by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
+@Stable
+class LayoutState(private val scope: CoroutineScope) {
+    var layout by mutableStateOf<ClusterLayout?>(null)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
+    var actionMessage by mutableStateOf<String?>(null)
+        private set
+    var showAssignDialog by mutableStateOf(false)
+    var showHistoryDialog by mutableStateOf(false)
 
-    fun loadData() {
+    fun refresh() {
         scope.launch {
             loading = true
             error = null
@@ -41,15 +45,119 @@ fun LayoutScreen() {
         }
     }
 
-    LaunchedEffect(Unit) { loadData() }
+    fun applyChanges() {
+        val currentLayout = layout ?: return
+        scope.launch {
+            try {
+                val newVersion = currentLayout.version + 1
+                ApiClient.post("/layout/apply", """{"version":$newVersion}""")
+                actionMessage = "Layout applied successfully"
+                refresh()
+            } catch (e: Exception) {
+                error = "Apply failed: ${e.message}"
+            }
+        }
+    }
 
+    fun preview() {
+        scope.launch {
+            try {
+                ApiClient.post("/layout/preview")
+                actionMessage = "Preview generated (check server logs)"
+                refresh()
+            } catch (e: Exception) {
+                error = "Preview failed: ${e.message}"
+            }
+        }
+    }
+
+    fun revert() {
+        scope.launch {
+            try {
+                ApiClient.post("/layout/revert")
+                actionMessage = "Staged changes reverted"
+                refresh()
+            } catch (e: Exception) {
+                error = "Revert failed: ${e.message}"
+            }
+        }
+    }
+
+    fun assignNode(nodeId: String, zone: String, capacity: Long, tags: List<String>) {
+        scope.launch {
+            try {
+                val tagsJson = tags.map { "\"$it\"" }.joinToString(",")
+                val body = """{"roles":[{"id":"$nodeId","zone":"$zone","capacity":$capacity,"tags":[$tagsJson]}]}"""
+                ApiClient.post("/layout/update", body)
+                showAssignDialog = false
+                actionMessage = "Node role staged for assignment"
+                refresh()
+            } catch (e: Exception) {
+                error = "Assign failed: ${e.message}"
+            }
+        }
+    }
+}
+
+@Composable
+fun rememberLayoutState(): LayoutState {
+    val scope = rememberCoroutineScope()
+    return remember { LayoutState(scope) }
+}
+
+@Composable
+fun LayoutScreen() {
+    val state = rememberLayoutState()
+
+    LaunchedEffect(Unit) { state.refresh() }
+
+    LayoutContent(
+        layout = state.layout,
+        error = state.error,
+        loading = state.loading,
+        actionMessage = state.actionMessage,
+        showAssignDialog = state.showAssignDialog,
+        showHistoryDialog = state.showHistoryDialog,
+        onRefresh = state::refresh,
+        onApplyChanges = state::applyChanges,
+        onPreview = state::preview,
+        onRevert = state::revert,
+        onShowAssignDialog = { state.showAssignDialog = true },
+        onDismissAssignDialog = { state.showAssignDialog = false },
+        onAssignNode = state::assignNode,
+        onShowHistoryDialog = { state.showHistoryDialog = true },
+        onDismissHistoryDialog = { state.showHistoryDialog = false },
+    )
+}
+
+@Composable
+fun LayoutContent(
+    layout: ClusterLayout?,
+    error: String?,
+    loading: Boolean,
+    actionMessage: String?,
+    showAssignDialog: Boolean,
+    showHistoryDialog: Boolean,
+    modifier: Modifier = Modifier,
+    onRefresh: () -> Unit,
+    onApplyChanges: () -> Unit,
+    onPreview: () -> Unit,
+    onRevert: () -> Unit,
+    onShowAssignDialog: () -> Unit,
+    onDismissAssignDialog: () -> Unit,
+    onAssignNode: (nodeId: String, zone: String, capacity: Long, tags: List<String>) -> Unit,
+    onShowHistoryDialog: () -> Unit,
+    onDismissHistoryDialog: () -> Unit,
+) {
     if (loading && layout == null) {
         LoadingIndicator()
         return
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp)
             .verticalScroll(rememberScrollState()),
     ) {
         Row(
@@ -63,13 +171,13 @@ fun LayoutScreen() {
                 fontWeight = FontWeight.Bold,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { showHistoryDialog = true }) {
+                OutlinedButton(onClick = onShowHistoryDialog) {
                     Text("History")
                 }
-                OutlinedButton(onClick = { showAssignDialog = true }) {
+                OutlinedButton(onClick = onShowAssignDialog) {
                     Text("Assign Node")
                 }
-                OutlinedButton(onClick = { loadData() }) {
+                OutlinedButton(onClick = onRefresh) {
                     Text("Refresh")
                 }
             }
@@ -179,45 +287,14 @@ fun LayoutScreen() {
                 Spacer(Modifier.height(16.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
-                        scope.launch {
-                            try {
-                                val newVersion = l.version + 1
-                                val response = ApiClient.post("/layout/apply", """{"version":$newVersion}""")
-                                actionMessage = "Layout applied successfully"
-                                loadData()
-                            } catch (e: Exception) {
-                                error = "Apply failed: ${e.message}"
-                            }
-                        }
-                    }) {
+                    Button(onClick = onApplyChanges) {
                         Text("Apply Changes")
                     }
-                    OutlinedButton(onClick = {
-                        scope.launch {
-                            try {
-                                ApiClient.post("/layout/preview")
-                                actionMessage = "Preview generated (check server logs)"
-                                loadData()
-                            } catch (e: Exception) {
-                                error = "Preview failed: ${e.message}"
-                            }
-                        }
-                    }) {
+                    OutlinedButton(onClick = onPreview) {
                         Text("Preview")
                     }
                     OutlinedButton(
-                        onClick = {
-                            scope.launch {
-                                try {
-                                    ApiClient.post("/layout/revert")
-                                    actionMessage = "Staged changes reverted"
-                                    loadData()
-                                } catch (e: Exception) {
-                                    error = "Revert failed: ${e.message}"
-                                }
-                            }
-                        },
+                        onClick = onRevert,
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.error,
                         ),
@@ -231,25 +308,12 @@ fun LayoutScreen() {
 
     if (showAssignDialog) {
         AssignNodeDialog(
-            onDismiss = { showAssignDialog = false },
-            onAssign = { nodeId, zone, capacity, tags ->
-                scope.launch {
-                    try {
-                        val tagsJson = tags.map { "\"$it\"" }.joinToString(",")
-                        val body = """{"roles":[{"id":"$nodeId","zone":"$zone","capacity":$capacity,"tags":[$tagsJson]}]}"""
-                        ApiClient.post("/layout/update", body)
-                        showAssignDialog = false
-                        actionMessage = "Node role staged for assignment"
-                        loadData()
-                    } catch (e: Exception) {
-                        error = "Assign failed: ${e.message}"
-                    }
-                }
-            },
+            onDismiss = onDismissAssignDialog,
+            onAssign = onAssignNode,
         )
     }
 
     if (showHistoryDialog) {
-        LayoutHistoryDialog(onDismiss = { showHistoryDialog = false })
+        LayoutHistoryDialog(onDismiss = onDismissHistoryDialog)
     }
 }

@@ -1,8 +1,6 @@
 package net.brightroom.garage.web.screens.bucket
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -10,22 +8,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.brightroom.garage.shared.model.bucket.BucketListItem
 import net.brightroom.garage.web.api.ApiClient
 import net.brightroom.garage.web.components.*
 import net.brightroom.garage.web.navigation.Screen
 
-@Composable
-fun BucketListScreen(onNavigate: (Screen) -> Unit) {
-    var buckets by remember { mutableStateOf<List<BucketListItem>>(emptyList()) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var search by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
+@Stable
+class BucketListState(private val scope: CoroutineScope) {
+    var buckets by mutableStateOf<List<BucketListItem>>(emptyList())
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
+    var showCreateDialog by mutableStateOf(false)
+    var search by mutableStateOf("")
 
-    fun loadData() {
+    val filteredBuckets: List<BucketListItem> by derivedStateOf {
+        if (search.isBlank()) buckets
+        else buckets.filter { b ->
+            b.globalAliases.any { it.contains(search, ignoreCase = true) } ||
+                b.id.contains(search, ignoreCase = true)
+        }
+    }
+
+    fun refresh() {
         scope.launch {
             loading = true
             error = null
@@ -38,44 +47,93 @@ fun BucketListScreen(onNavigate: (Screen) -> Unit) {
         }
     }
 
-    LaunchedEffect(Unit) { loadData() }
+    fun createBucket(alias: String) {
+        scope.launch {
+            try {
+                ApiClient.post("/buckets", """{"globalAlias":"$alias"}""")
+                showCreateDialog = false
+                refresh()
+            } catch (e: Exception) {
+                error = "Create failed: ${e.message}"
+            }
+        }
+    }
+}
 
+@Composable
+fun rememberBucketListState(): BucketListState {
+    val scope = rememberCoroutineScope()
+    return remember { BucketListState(scope) }
+}
+
+@Composable
+fun BucketListScreen(onNavigate: (Screen) -> Unit) {
+    val state = rememberBucketListState()
+
+    LaunchedEffect(Unit) { state.refresh() }
+
+    BucketListContent(
+        buckets = state.filteredBuckets,
+        totalCount = state.buckets.size,
+        error = state.error,
+        loading = state.loading,
+        search = state.search,
+        showCreateDialog = state.showCreateDialog,
+        onSearchChange = { state.search = it },
+        onRefresh = state::refresh,
+        onNavigate = onNavigate,
+        onShowCreateDialog = { state.showCreateDialog = true },
+        onDismissCreateDialog = { state.showCreateDialog = false },
+        onCreateBucket = state::createBucket,
+    )
+}
+
+@Composable
+fun BucketListContent(
+    buckets: List<BucketListItem>,
+    totalCount: Int,
+    error: String?,
+    loading: Boolean,
+    search: String,
+    showCreateDialog: Boolean,
+    modifier: Modifier = Modifier,
+    onSearchChange: (String) -> Unit,
+    onRefresh: () -> Unit,
+    onNavigate: (Screen) -> Unit,
+    onShowCreateDialog: () -> Unit,
+    onDismissCreateDialog: () -> Unit,
+    onCreateBucket: (String) -> Unit,
+) {
     if (loading && buckets.isEmpty()) {
         LoadingIndicator()
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(24.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                "Buckets (${buckets.size})",
+                "Buckets ($totalCount)",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { showCreateDialog = true }) {
+                Button(onClick = onShowCreateDialog) {
                     Text("Create Bucket")
                 }
-                OutlinedButton(onClick = { loadData() }) {
+                OutlinedButton(onClick = onRefresh) {
                     Text("Refresh")
                 }
             }
         }
 
         Spacer(Modifier.height(12.dp))
-        SearchField(value = search, onValueChange = { search = it }, placeholder = "Search buckets...")
+        SearchField(value = search, onValueChange = onSearchChange, placeholder = "Search buckets...")
         Spacer(Modifier.height(12.dp))
         error?.let { ErrorBanner(it) }
-
-        val filtered = buckets.filter { b ->
-            search.isBlank() ||
-                b.globalAliases.any { it.contains(search, ignoreCase = true) } ||
-                b.id.contains(search, ignoreCase = true)
-        }
 
         val columns = listOf(
             Column<BucketListItem>("ID", width = 120.dp) { b ->
@@ -100,7 +158,7 @@ fun BucketListScreen(onNavigate: (Screen) -> Unit) {
         )
 
         DataTable(
-            items = filtered,
+            items = buckets,
             columns = columns,
             onRowClick = { b -> onNavigate(Screen.BucketDetail(b.id)) },
             modifier = Modifier.fillMaxWidth().weight(1f),
@@ -109,18 +167,8 @@ fun BucketListScreen(onNavigate: (Screen) -> Unit) {
 
     if (showCreateDialog) {
         CreateBucketDialog(
-            onDismiss = { showCreateDialog = false },
-            onCreate = { alias ->
-                scope.launch {
-                    try {
-                        ApiClient.post("/buckets", """{"globalAlias":"$alias"}""")
-                        showCreateDialog = false
-                        loadData()
-                    } catch (e: Exception) {
-                        error = "Create failed: ${e.message}"
-                    }
-                }
-            },
+            onDismiss = onDismissCreateDialog,
+            onCreate = onCreateBucket,
         )
     }
 }

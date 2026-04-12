@@ -7,7 +7,7 @@ import net.brightroom.garage.server.service.GarageAdminClient
 import net.brightroom.garage.server.service.GarageS3Service
 
 fun Application.configureDi() {
-    val appConfig = AppConfig.fromEnv()
+    val appConfig = AppConfig.from(environment)
 
     dependencies {
         provide<AppConfig> { appConfig }

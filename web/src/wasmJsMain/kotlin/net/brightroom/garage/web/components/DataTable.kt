@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+@Immutable
 data class Column<T>(
     val header: String,
     val width: Dp = 0.dp,
@@ -25,8 +26,8 @@ data class Column<T>(
 fun <T> DataTable(
     items: List<T>,
     columns: List<Column<T>>,
-    onRowClick: ((T) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onRowClick: ((T) -> Unit)? = null,
 ) {
     Column(modifier = modifier) {
         // Header

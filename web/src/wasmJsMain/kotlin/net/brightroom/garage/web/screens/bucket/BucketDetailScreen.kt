@@ -10,23 +10,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.brightroom.garage.shared.model.bucket.BucketInfo
 import net.brightroom.garage.web.api.ApiClient
 import net.brightroom.garage.web.components.*
 import net.brightroom.garage.web.navigation.Screen
 
-@Composable
-fun BucketDetailScreen(bucketId: String, onNavigate: (Screen) -> Unit) {
-    var bucket by remember { mutableStateOf<BucketInfo?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showQuotaDialog by remember { mutableStateOf(false) }
-    var showWebsiteDialog by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+@Stable
+class BucketDetailState(
+    private val bucketId: String,
+    private val scope: CoroutineScope,
+) {
+    var bucket by mutableStateOf<BucketInfo?>(null)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
+    var showDeleteDialog by mutableStateOf(false)
+    var showQuotaDialog by mutableStateOf(false)
+    var showWebsiteDialog by mutableStateOf(false)
 
-    fun loadData() {
+    fun refresh() {
         scope.launch {
             loading = true
             error = null
@@ -39,15 +45,117 @@ fun BucketDetailScreen(bucketId: String, onNavigate: (Screen) -> Unit) {
         }
     }
 
-    LaunchedEffect(bucketId) { loadData() }
+    fun deleteBucket(onNavigate: (Screen) -> Unit) {
+        scope.launch {
+            try {
+                ApiClient.delete("/buckets/$bucketId")
+                onNavigate(Screen.Buckets)
+            } catch (e: Exception) {
+                error = "Delete failed: ${e.message}"
+            }
+        }
+        showDeleteDialog = false
+    }
 
+    fun updateQuotas(maxSize: Long?, maxObjects: Long?) {
+        scope.launch {
+            try {
+                val body = buildString {
+                    append("""{"quotas":{"maxSize":""")
+                    append(maxSize?.toString() ?: "null")
+                    append(""","maxObjects":""")
+                    append(maxObjects?.toString() ?: "null")
+                    append("}}")
+                }
+                ApiClient.post("/buckets/$bucketId", body)
+                showQuotaDialog = false
+                refresh()
+            } catch (e: Exception) {
+                error = "Update failed: ${e.message}"
+            }
+        }
+    }
+
+    fun updateWebsite(enabled: Boolean, indexDoc: String, errorDoc: String?) {
+        scope.launch {
+            try {
+                val errorPart = if (errorDoc.isNullOrBlank()) "null" else "\"$errorDoc\""
+                val body = """{"websiteAccess":{"enabled":$enabled,"indexDocument":"$indexDoc","errorDocument":$errorPart}}"""
+                ApiClient.post("/buckets/$bucketId", body)
+                showWebsiteDialog = false
+                refresh()
+            } catch (e: Exception) {
+                error = "Update failed: ${e.message}"
+            }
+        }
+    }
+}
+
+@Composable
+fun rememberBucketDetailState(bucketId: String): BucketDetailState {
+    val scope = rememberCoroutineScope()
+    return remember(bucketId) { BucketDetailState(bucketId, scope) }
+}
+
+@Composable
+fun BucketDetailScreen(bucketId: String, onNavigate: (Screen) -> Unit) {
+    val state = rememberBucketDetailState(bucketId)
+
+    LaunchedEffect(bucketId) { state.refresh() }
+
+    BucketDetailContent(
+        bucketId = bucketId,
+        bucket = state.bucket,
+        error = state.error,
+        loading = state.loading,
+        showDeleteDialog = state.showDeleteDialog,
+        showQuotaDialog = state.showQuotaDialog,
+        showWebsiteDialog = state.showWebsiteDialog,
+        onNavigate = onNavigate,
+        onRefresh = state::refresh,
+        onShowDeleteDialog = { state.showDeleteDialog = true },
+        onDismissDeleteDialog = { state.showDeleteDialog = false },
+        onDeleteBucket = { state.deleteBucket(onNavigate) },
+        onShowQuotaDialog = { state.showQuotaDialog = true },
+        onDismissQuotaDialog = { state.showQuotaDialog = false },
+        onUpdateQuotas = state::updateQuotas,
+        onShowWebsiteDialog = { state.showWebsiteDialog = true },
+        onDismissWebsiteDialog = { state.showWebsiteDialog = false },
+        onUpdateWebsite = state::updateWebsite,
+    )
+}
+
+@Composable
+fun BucketDetailContent(
+    bucketId: String,
+    bucket: BucketInfo?,
+    error: String?,
+    loading: Boolean,
+    showDeleteDialog: Boolean,
+    showQuotaDialog: Boolean,
+    showWebsiteDialog: Boolean,
+    modifier: Modifier = Modifier,
+    onNavigate: (Screen) -> Unit,
+    onRefresh: () -> Unit,
+    onShowDeleteDialog: () -> Unit,
+    onDismissDeleteDialog: () -> Unit,
+    onDeleteBucket: () -> Unit,
+    onShowQuotaDialog: () -> Unit,
+    onDismissQuotaDialog: () -> Unit,
+    onUpdateQuotas: (maxSize: Long?, maxObjects: Long?) -> Unit,
+    onShowWebsiteDialog: () -> Unit,
+    onDismissWebsiteDialog: () -> Unit,
+    onUpdateWebsite: (enabled: Boolean, indexDoc: String, errorDoc: String?) -> Unit,
+) {
     if (loading && bucket == null) {
         LoadingIndicator()
         return
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp)
             .verticalScroll(rememberScrollState()),
     ) {
         // Header
@@ -77,7 +185,7 @@ fun BucketDetailScreen(bucketId: String, onNavigate: (Screen) -> Unit) {
                     Text("Browse Objects")
                 }
                 OutlinedButton(
-                    onClick = { showDeleteDialog = true },
+                    onClick = onShowDeleteDialog,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) {
                     Text("Delete")
@@ -138,7 +246,7 @@ fun BucketDetailScreen(bucketId: String, onNavigate: (Screen) -> Unit) {
                     Text("Max objects: ${b.quotas.maxObjects ?: "Unlimited"}")
                 }
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = { showQuotaDialog = true }) {
+                OutlinedButton(onClick = onShowQuotaDialog) {
                     Text("Edit Quotas")
                 }
             }
@@ -153,7 +261,7 @@ fun BucketDetailScreen(bucketId: String, onNavigate: (Screen) -> Unit) {
                     wc.errorDocument?.let { Text("Error: $it") }
                 }
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = { showWebsiteDialog = true }) {
+                OutlinedButton(onClick = onShowWebsiteDialog) {
                     Text("Configure Website")
                 }
             }
@@ -190,18 +298,8 @@ fun BucketDetailScreen(bucketId: String, onNavigate: (Screen) -> Unit) {
             confirmLabel = "Delete",
             destructive = true,
             typeToConfirm = bucket?.globalAliases?.firstOrNull() ?: bucketId.take(12),
-            onConfirm = {
-                scope.launch {
-                    try {
-                        ApiClient.delete("/buckets/$bucketId")
-                        onNavigate(Screen.Buckets)
-                    } catch (e: Exception) {
-                        error = "Delete failed: ${e.message}"
-                    }
-                }
-                showDeleteDialog = false
-            },
-            onDismiss = { showDeleteDialog = false },
+            onConfirm = onDeleteBucket,
+            onDismiss = onDismissDeleteDialog,
         )
     }
 
@@ -209,25 +307,8 @@ fun BucketDetailScreen(bucketId: String, onNavigate: (Screen) -> Unit) {
         UpdateQuotaDialog(
             currentMaxSize = bucket?.quotas?.maxSize,
             currentMaxObjects = bucket?.quotas?.maxObjects,
-            onDismiss = { showQuotaDialog = false },
-            onUpdate = { maxSize, maxObjects ->
-                scope.launch {
-                    try {
-                        val body = buildString {
-                            append("""{"quotas":{"maxSize":""")
-                            append(maxSize?.toString() ?: "null")
-                            append(""","maxObjects":""")
-                            append(maxObjects?.toString() ?: "null")
-                            append("}}")
-                        }
-                        ApiClient.post("/buckets/$bucketId", body)
-                        showQuotaDialog = false
-                        loadData()
-                    } catch (e: Exception) {
-                        error = "Update failed: ${e.message}"
-                    }
-                }
-            },
+            onDismiss = onDismissQuotaDialog,
+            onUpdate = onUpdateQuotas,
         )
     }
 
@@ -236,26 +317,18 @@ fun BucketDetailScreen(bucketId: String, onNavigate: (Screen) -> Unit) {
             enabled = bucket?.websiteAccess ?: false,
             indexDoc = bucket?.websiteConfig?.indexDocument ?: "index.html",
             errorDoc = bucket?.websiteConfig?.errorDocument,
-            onDismiss = { showWebsiteDialog = false },
-            onUpdate = { enabled, indexDoc, errorDoc ->
-                scope.launch {
-                    try {
-                        val errorPart = if (errorDoc.isNullOrBlank()) "null" else "\"$errorDoc\""
-                        val body = """{"websiteAccess":{"enabled":$enabled,"indexDocument":"$indexDoc","errorDocument":$errorPart}}"""
-                        ApiClient.post("/buckets/$bucketId", body)
-                        showWebsiteDialog = false
-                        loadData()
-                    } catch (e: Exception) {
-                        error = "Update failed: ${e.message}"
-                    }
-                }
-            },
+            onDismiss = onDismissWebsiteDialog,
+            onUpdate = onUpdateWebsite,
         )
     }
 }
 
 @Composable
-private fun StatCard(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+private fun StatCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
     Card(modifier = modifier) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -266,8 +339,12 @@ private fun StatCard(title: String, modifier: Modifier = Modifier, content: @Com
 }
 
 @Composable
-private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun SectionCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
@@ -277,7 +354,11 @@ private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Un
 }
 
 @Composable
-private fun PermChip(label: String, enabled: Boolean) {
+private fun PermChip(
+    label: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
     SuggestionChip(
         onClick = {},
         label = {
@@ -287,5 +368,6 @@ private fun PermChip(label: String, enabled: Boolean) {
                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
             )
         },
+        modifier = modifier,
     )
 }

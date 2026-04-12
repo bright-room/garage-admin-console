@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.brightroom.garage.shared.model.cluster.ClusterHealth
 import net.brightroom.garage.shared.model.cluster.ClusterStatus
@@ -17,17 +18,22 @@ import net.brightroom.garage.web.components.ErrorBanner
 import net.brightroom.garage.web.components.LoadingIndicator
 import net.brightroom.garage.web.components.StatusChip
 
-@Composable
-fun DashboardScreen() {
-    var health by remember { mutableStateOf<ClusterHealth?>(null) }
-    var status by remember { mutableStateOf<ClusterStatus?>(null) }
-    var bucketCount by remember { mutableStateOf<Int?>(null) }
-    var keyCount by remember { mutableStateOf<Int?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
+@Stable
+class DashboardState(private val scope: CoroutineScope) {
+    var health by mutableStateOf<ClusterHealth?>(null)
+        private set
+    var status by mutableStateOf<ClusterStatus?>(null)
+        private set
+    var bucketCount by mutableStateOf<Int?>(null)
+        private set
+    var keyCount by mutableStateOf<Int?>(null)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var loading by mutableStateOf(true)
+        private set
 
-    fun loadData() {
+    fun refresh() {
         scope.launch {
             loading = true
             error = null
@@ -44,16 +50,51 @@ fun DashboardScreen() {
             loading = false
         }
     }
+}
 
-    LaunchedEffect(Unit) { loadData() }
+@Composable
+fun rememberDashboardState(): DashboardState {
+    val scope = rememberCoroutineScope()
+    return remember { DashboardState(scope) }
+}
 
+@Composable
+fun DashboardScreen() {
+    val state = rememberDashboardState()
+
+    LaunchedEffect(Unit) { state.refresh() }
+
+    DashboardContent(
+        health = state.health,
+        status = state.status,
+        bucketCount = state.bucketCount,
+        keyCount = state.keyCount,
+        error = state.error,
+        loading = state.loading,
+        onRefresh = state::refresh,
+    )
+}
+
+@Composable
+fun DashboardContent(
+    health: ClusterHealth?,
+    status: ClusterStatus?,
+    bucketCount: Int?,
+    keyCount: Int?,
+    error: String?,
+    loading: Boolean,
+    modifier: Modifier = Modifier,
+    onRefresh: () -> Unit,
+) {
     if (loading && health == null) {
         LoadingIndicator()
         return
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp)
             .verticalScroll(rememberScrollState()),
     ) {
         Row(
@@ -66,7 +107,7 @@ fun DashboardScreen() {
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
-            IconButton(onClick = { loadData() }) {
+            IconButton(onClick = onRefresh) {
                 Text("Refresh")
             }
         }
