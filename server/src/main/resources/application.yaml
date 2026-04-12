@@ -1,0 +1,17 @@
+ktor:
+  deployment:
+    host: 0.0.0.0
+    port: ${PORT:8080}
+  application:
+    modules:
+      - net.brightroom.garage.server.ApplicationKt.module
+
+garage:
+  admin:
+    endpoint: ${GARAGE_ADMIN_ENDPOINT:http://localhost:3903}
+    token: ${GARAGE_ADMIN_TOKEN}
+  s3:
+    endpoint: ${GARAGE_S3_ENDPOINT:http://localhost:3900}
+    accessKeyId: ${GARAGE_S3_ACCESS_KEY_ID}
+    secretAccessKey: ${GARAGE_S3_SECRET_ACCESS_KEY}
+    region: ${GARAGE_S3_REGION:garage}

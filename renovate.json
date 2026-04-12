@@ -7,10 +7,10 @@
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
   "separateMinorPatch": true,
-  "minimumReleaseAge": "3 days",
+  "minimumReleaseAge": "7 days",
   "automerge": true,
   "major": {
-    "minimumReleaseAge": "7 days",
+    "minimumReleaseAge": "14 days",
     "automerge": false
   }
 }
