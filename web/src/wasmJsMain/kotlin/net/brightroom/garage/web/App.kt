@@ -4,7 +4,9 @@ import androidx.compose.runtime.*
 import net.brightroom.garage.web.navigation.AppScaffold
 import net.brightroom.garage.web.navigation.Screen
 import net.brightroom.garage.web.screens.PlaceholderScreen
+import net.brightroom.garage.web.screens.cluster.ClusterScreen
 import net.brightroom.garage.web.screens.dashboard.DashboardScreen
+import net.brightroom.garage.web.screens.layout.LayoutScreen
 import net.brightroom.garage.web.theme.GarageAdminTheme
 
 @Composable
@@ -18,8 +20,8 @@ fun App() {
         ) {
             when (currentScreen) {
                 is Screen.Dashboard -> DashboardScreen()
-                is Screen.Cluster -> PlaceholderScreen("Cluster")
-                is Screen.Layout -> PlaceholderScreen("Layout")
+                is Screen.Cluster -> ClusterScreen()
+                is Screen.Layout -> LayoutScreen()
                 is Screen.Buckets -> PlaceholderScreen("Buckets")
                 is Screen.Keys -> PlaceholderScreen("Keys")
                 is Screen.S3Browser -> PlaceholderScreen("S3 Browser")
