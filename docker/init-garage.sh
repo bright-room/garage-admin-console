@@ -41,29 +41,23 @@ else
   echo "Layout already assigned, skipping."
 fi
 
-# Create a default access key if it doesn't exist
+# Fixed credentials for local development
+DEV_ACCESS_KEY_ID="GK000000000000000000000000"
+DEV_SECRET_ACCESS_KEY="0000000000000000000000000000000000000000000000000000000000000000"
+
+# Import fixed access key if it doesn't exist
 EXISTING_KEYS=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v2/ListKeys")
 KEY_COUNT=$(echo "${EXISTING_KEYS}" | jq 'length')
 
 if [ "${KEY_COUNT}" = "0" ]; then
-  echo "Creating access key..."
-  KEY_RESPONSE=$(curl -sf -X POST \
+  echo "Importing fixed access key..."
+  curl -sf -X POST \
     -H "Authorization: Bearer ${ADMIN_TOKEN}" \
     -H "Content-Type: application/json" \
-    -d '{"name": "dev-key"}' \
-    "${GARAGE_ADMIN}/v2/CreateKey")
-
-  ACCESS_KEY_ID=$(echo "${KEY_RESPONSE}" | jq -r '.accessKeyId')
-  SECRET_ACCESS_KEY=$(echo "${KEY_RESPONSE}" | jq -r '.secretAccessKey')
-
-  echo "============================================"
-  echo "Access Key ID:     ${ACCESS_KEY_ID}"
-  echo "Secret Access Key: ${SECRET_ACCESS_KEY}"
-  echo "============================================"
-  echo ""
-  echo "Add these to your mise.toml:"
-  echo "  GARAGE_S3_ACCESS_KEY_ID = \"${ACCESS_KEY_ID}\""
-  echo "  GARAGE_S3_SECRET_ACCESS_KEY = \"${SECRET_ACCESS_KEY}\""
+    -d "{\"name\": \"dev-key\", \"accessKeyId\": \"${DEV_ACCESS_KEY_ID}\", \"secretAccessKey\": \"${DEV_SECRET_ACCESS_KEY}\"}" \
+    "${GARAGE_ADMIN}/v2/ImportKey" > /dev/null
+  echo "Access key imported."
+  ACCESS_KEY_ID="${DEV_ACCESS_KEY_ID}"
 else
   echo "Access key already exists, skipping."
   ACCESS_KEY_ID=$(echo "${EXISTING_KEYS}" | jq -r '.[0].id')
