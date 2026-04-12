@@ -20,18 +20,3 @@ services:
     entrypoint: ["/bin/sh", "-c", "apk add --no-cache curl jq bash && sh /scripts/init-garage.sh"]
     volumes:
       - ./docker/init-garage.sh:/scripts/init-garage.sh:ro
-
-  admin-console:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      GARAGE_ADMIN_ENDPOINT: http://garage:3903
-      GARAGE_ADMIN_TOKEN: dev-admin-token
-      GARAGE_S3_ENDPOINT: http://garage:3900
-      GARAGE_S3_ACCESS_KEY_ID: ${GARAGE_S3_ACCESS_KEY_ID}
-      GARAGE_S3_SECRET_ACCESS_KEY: ${GARAGE_S3_SECRET_ACCESS_KEY}
-      GARAGE_S3_REGION: garage
-    depends_on:
-      garage-init:
-        condition: service_completed_successfully
