@@ -1,0 +1,25 @@
+name: Gradle Action
+description: Sets up Java and Gradle, then runs a Gradle command
+
+inputs:
+  command:
+    description: Gradle command to execute
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Java
+      uses: actions/setup-java@v5
+      with:
+        distribution: corretto
+        java-version: 21
+
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@v6
+
+    - name: Run Gradle command
+      shell: bash
+      run: |
+        chmod +x ./gradlew
+        ./gradlew ${{ inputs.command }}

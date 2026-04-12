@@ -1,0 +1,17 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build and Test
+        uses: ./.github/actions/gradle-action
+        with:
+          command: server:check shared:jvmTest
