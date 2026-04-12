@@ -1,0 +1,30 @@
+services:
+  garage:
+    image: dxflrs/garage:v2.2.0
+    ports:
+      - "3900:3900" # S3 API
+      - "3901:3901" # RPC
+      - "3902:3902" # S3 Web
+      - "3903:3903" # Admin API
+    volumes:
+      - ./docker/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  garage-init:
+    image: alpine:latest
+    depends_on:
+      garage:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache curl jq bash && sh /scripts/init-garage.sh"]
+    volumes:
+      - ./docker/init-garage.sh:/scripts/init-garage.sh:ro
+
+volumes:
+  garage-meta:
+  garage-data:

@@ -1,0 +1,22 @@
+services:
+  garage:
+    image: dxflrs/garage:v2.2.0
+    ports:
+      - "3900:3900"
+      - "3903:3903"
+    volumes:
+      - ./docker/garage.toml:/etc/garage.toml:ro
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  garage-init:
+    image: alpine:latest
+    depends_on:
+      garage:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache curl jq bash && sh /scripts/init-garage.sh"]
+    volumes:
+      - ./docker/init-garage.sh:/scripts/init-garage.sh:ro
