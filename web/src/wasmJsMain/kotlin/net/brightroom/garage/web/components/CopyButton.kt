@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
+
 package net.brightroom.garage.web.components
 
 import androidx.compose.material3.*
