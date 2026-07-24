@@ -1,16 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
-  "timezone": "Asia/Tokyo",
-  "schedule": ["before 9am on saturday"],
-  "labels": ["Kind: Dependencies"],
-  "prConcurrentLimit": 0,
-  "prHourlyLimit": 0,
-  "separateMinorPatch": true,
-  "minimumReleaseAge": "7 days",
-  "automerge": true,
-  "major": {
-    "minimumReleaseAge": "14 days",
-    "automerge": false
-  }
+  "extends": [
+    "github>bright-room/renovate-config",
+    "github>bright-room/renovate-config:kotlin"
+  ]
 }
