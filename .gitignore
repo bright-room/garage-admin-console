@@ -70,19 +70,3 @@ nbdist/
 ### kotlin ###
 .kotlin/
 # <<< repository-fanout managed <<<
-.gradle
-
-### STS ###
-
-### IntelliJ IDEA ###
-.idea
-.kotlin
-
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
-### VS Code ###
-.tmp
