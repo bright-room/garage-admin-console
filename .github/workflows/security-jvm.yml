@@ -1,0 +1,44 @@
+name: security-jvm
+
+# fanout 配布(java / kotlin profile)。層2: Gradle 固有のサプライチェーン対策。
+# - wrapper-validation: gradle-wrapper.jar のチェックサム検証(改ざん検知)
+# - dependency-submission: 解決済み依存グラフを GitHub へ送信 → Dependabot alerts が
+#   既知脆弱性を検知(lockfile 未コミットでも依存が見えるようになる)
+# このファイルは fanout 管理(replaced)。変更は canonical-files の templates/ へ。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  wrapper-validation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: gradle/actions/wrapper-validation@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+
+  dependency-submission:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 依存グラフ送信(Dependency submission API)に必要
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/dependency-submission@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
