@@ -1,4 +1,3 @@
-# >>> repository-fanout managed >>>
 ### JetBrains IDEs ###
 .fleet/
 .idea/
@@ -69,4 +68,3 @@ nbdist/
 
 ### kotlin ###
 .kotlin/
-# <<< repository-fanout managed <<<
