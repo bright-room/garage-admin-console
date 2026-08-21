@@ -5,7 +5,7 @@ ktor = "3.5.0"
 kotlinx-serialization = "1.11.0"
 kotlinx-coroutines = "1.11.0"
 kotlinx-datetime = "0.8.0-0.6.x-compat"
-aws-sdk-kotlin = "1.8.26"
+aws-sdk-kotlin = "1.8.31"
 logback = "1.6.3"
 
 [libraries]
