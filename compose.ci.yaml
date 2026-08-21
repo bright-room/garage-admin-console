@@ -1,6 +1,6 @@
 services:
   garage:
-    image: dxflrs/garage:v2.3.0
+    image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
     ports:
       - "3900:3900"
       - "3903:3903"
@@ -13,7 +13,7 @@ services:
       retries: 10
 
   garage-init:
-    image: alpine:latest
+    image: alpine:latest@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
     depends_on:
       garage:
         condition: service_healthy
