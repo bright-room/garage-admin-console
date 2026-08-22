@@ -1,0 +1,11 @@
+ktor:
+  deployment:
+    host: 0.0.0.0
+    port: ${PORT:8080}
+  application:
+    modules:
+      - net.brightroom.garage.server.ApplicationKt.module
+
+garage:
+  admin:
+    endpoint: ${GARAGE_ADMIN_ENDPOINT:http://localhost:3903}

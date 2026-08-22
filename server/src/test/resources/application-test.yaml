@@ -1,0 +1,8 @@
+ktor:
+  application:
+    modules:
+      - net.brightroom.garage.server.ApplicationKt.module
+
+garage:
+  admin:
+    endpoint: http://garage.test:3903
