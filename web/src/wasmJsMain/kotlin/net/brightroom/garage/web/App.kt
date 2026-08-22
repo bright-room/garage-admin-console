@@ -22,6 +22,7 @@ import net.brightroom.garage.web.navigation.AppScaffold
 import net.brightroom.garage.web.router.RouterState
 import net.brightroom.garage.web.router.rememberRouter
 import net.brightroom.garage.web.screens.login.LoginScreen
+import net.brightroom.garage.web.screens.overview.OverviewScreen
 import net.brightroom.garage.web.session.LocalSession
 import net.brightroom.garage.web.session.SessionState
 import net.brightroom.garage.web.theme.GarageAdminTheme
@@ -75,8 +76,8 @@ fun App() {
 private fun AuthenticatedApp(router: RouterState) {
     AppScaffold(router) {
         when (val route = router.current) {
-            Route.Overview -> Text("概況")          // Task 17 で OverviewScreen に差し替える
-            Route.Login -> Text("概況")             // ログイン済みで /login に来たら概況を出す
+            Route.Overview -> OverviewScreen()
+            Route.Login -> OverviewScreen()         // ログイン済みで /login に来たら概況を出す
             is Route.NotFound -> ErrorView("画面が見つかりません: ${route.path}")
         }
     }
