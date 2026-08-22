@@ -17,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import net.brightroom.garage.shared.navigation.Route
+import net.brightroom.garage.web.components.ErrorView
+import net.brightroom.garage.web.navigation.AppScaffold
 import net.brightroom.garage.web.router.RouterState
 import net.brightroom.garage.web.router.rememberRouter
 import net.brightroom.garage.web.screens.login.LoginScreen
@@ -71,5 +73,11 @@ fun App() {
 
 @Composable
 private fun AuthenticatedApp(router: RouterState) {
-    Text("signed in: ${router.current}")
+    AppScaffold(router) {
+        when (val route = router.current) {
+            Route.Overview -> Text("概況")          // Task 17 で OverviewScreen に差し替える
+            Route.Login -> Text("概況")             // ログイン済みで /login に来たら概況を出す
+            is Route.NotFound -> ErrorView("画面が見つかりません: ${route.path}")
+        }
+    }
 }
