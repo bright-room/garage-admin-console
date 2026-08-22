@@ -251,7 +251,8 @@ POST   /api/blocks/purge                     PurgeBlocks
 
 - **ラッパーを被せない。** RFC 9457 の problem details object はレスポンスのトップレベルに置く
 - **`type` は省略する。** RFC 9457 は省略時を `about:blank` とみなす。`about:blank` の場合 `title` は「その HTTP ステータスの推奨理由句であるべき」と定められているため、`title` には Ktor の `HttpStatusCode.description` をそのまま使う。コンソール固有の問題型を定義する必要が生じた時点で `type` に URI を入れる
-- **独自のエラーコード enum は定義しない。** 分類は `status` が担う。Kotlin 側の型には Ktor の `HttpStatusCode` を使い、JSON では RFC 9457 の定めどおり数値に直列化する（そのためのカスタム serializer を `:shared` に置き、`:shared` に `io.ktor:ktor-http` を追加する）
+- **独自のエラーコード enum は定義しない。** 分類は HTTP レスポンスのステータスが担う。ktor の server ↔ client であれば、判定に必要な `HttpStatusCode` はレスポンス自体が運ぶ
+- **DTO の `status` は判定に使わない。** RFC 9457 が定める表現上のメンバーであり、Kotlin 側の型は `Int` で足りる。`HttpStatusCode` を DTO のフィールド型にはしない（`:shared` に `io.ktor:ktor-http` を持ち込まずに済む）
 - `operation` は RFC 9457 の拡張メンバーで、原因となった Garage の operation 名を運ぶ。仕様どおり、未知の拡張メンバーは無視されてよい
 
 ### 7.2 `/api/overview`
