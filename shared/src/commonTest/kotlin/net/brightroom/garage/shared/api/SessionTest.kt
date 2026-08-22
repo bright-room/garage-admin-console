@@ -1,16 +1,16 @@
 package net.brightroom.garage.shared.api
 
-import net.brightroom.garage.shared.model.garage.AdminTokenInfo
+import net.brightroom.garage.shared.model.garage.AdminToken
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class SessionInfoTest {
+class SessionTest {
 
     @Test
     fun wildcardScopeAllowsEveryOperation() {
-        val session = SessionInfo(name = "root", scope = listOf("*"), expired = false)
+        val session = Session(name = "root", scope = listOf("*"), expired = false)
 
         assertTrue(session.allows("ListBuckets"))
         assertTrue(session.allows("PurgeBlocks"))
@@ -18,7 +18,7 @@ class SessionInfoTest {
 
     @Test
     fun explicitScopeAllowsOnlyListedOperations() {
-        val session = SessionInfo(
+        val session = Session(
             name = "readonly",
             scope = listOf("ListBuckets", "GetBucketInfo"),
             expired = false,
@@ -29,15 +29,15 @@ class SessionInfoTest {
     }
 
     @Test
-    fun convertsAdminTokenInfo() {
-        val info = AdminTokenInfo(
+    fun convertsAdminToken() {
+        val token = AdminToken(
             name = "alice",
             scope = listOf("ListKeys"),
             expired = false,
             id = "tok1",
         )
 
-        val session = info.toSessionInfo()
+        val session = token.toSession()
 
         assertEquals("alice", session.name)
         assertEquals(listOf("ListKeys"), session.scope)

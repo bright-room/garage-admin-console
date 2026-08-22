@@ -2,6 +2,7 @@ package net.brightroom.garage.shared.api
 
 import kotlinx.serialization.json.Json
 import net.brightroom.garage.shared.model.garage.ClusterHealth
+import net.brightroom.garage.shared.model.garage.ClusterHealthStatus
 import net.brightroom.garage.shared.model.garage.FreeSpace
 import net.brightroom.garage.shared.model.garage.NodeAssignedRole
 import net.brightroom.garage.shared.model.garage.NodeResp
@@ -13,7 +14,7 @@ class OverviewTest {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun health(status: String, quorum: Int = 256) = ClusterHealth(
+    private fun health(status: ClusterHealthStatus, quorum: Int = 256) = ClusterHealth(
         status = status,
         knownNodes = 3,
         connectedNodes = 3,
@@ -25,7 +26,7 @@ class OverviewTest {
     )
 
     private fun overview(
-        healthSection: Section<ClusterHealth> = Section.Loaded(health("healthy")),
+        healthSection: Section<ClusterHealth> = Section.Loaded(health(ClusterHealthStatus.HEALTHY)),
         nodes: List<NodeSummary> = emptyList(),
         layout: LayoutSummary = LayoutSummary(version = 7, stagedChanges = 0),
         blockErrors: Int = 0,
@@ -91,7 +92,8 @@ class OverviewTest {
 
     @Test
     fun unavailableClusterRaisesError() {
-        val alerts = overview(healthSection = Section.Loaded(health("unavailable", quorum = 200))).alerts()
+        val unavailable = health(ClusterHealthStatus.UNAVAILABLE, quorum = 200)
+        val alerts = overview(healthSection = Section.Loaded(unavailable)).alerts()
 
         assertTrue(alerts.any { it.severity == AlertSeverity.ERROR })
     }
@@ -140,7 +142,7 @@ class OverviewTest {
     @Test
     fun overviewRoundTripsWithMixedSections() {
         val original = Overview(
-            health = Section.Loaded(health("degraded")),
+            health = Section.Loaded(health(ClusterHealthStatus.DEGRADED)),
             nodes = Section.Denied("GetClusterStatus"),
             layout = Section.Failed("connection refused"),
             storage = Section.Loaded(StorageSummary(buckets = 1, keys = 2)),

@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 
 /** `GetCurrentAdminTokenInfo` および `GetAdminTokenInfo` のレスポンス。 */
 @Serializable
-data class AdminTokenInfo(
+data class AdminToken(
     val name: String,
     /** 許可された operation 名の一覧。`*` はすべてを許可する。 */
     val scope: List<String>,

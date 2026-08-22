@@ -4,6 +4,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -19,7 +20,7 @@ class GarageModelTest {
             """.trimIndent(),
         )
 
-        assertEquals("healthy", health.status)
+        assertEquals(ClusterHealthStatus.HEALTHY, health.status)
         assertEquals(256, health.partitionsAllOk)
         assertTrue(health.isHealthy)
     }
@@ -33,7 +34,34 @@ class GarageModelTest {
             """.trimIndent(),
         )
 
+        assertEquals(ClusterHealthStatus.DEGRADED, health.status)
         assertEquals(false, health.isHealthy)
+    }
+
+    @Test
+    fun decodesUnavailableHealth() {
+        val health = json.decodeFromString<ClusterHealth>(
+            """
+            {"status":"unavailable","knownNodes":3,"connectedNodes":1,"storageNodes":3,
+             "storageNodesUp":1,"partitions":256,"partitionsQuorum":200,"partitionsAllOk":100}
+            """.trimIndent(),
+        )
+
+        assertEquals(ClusterHealthStatus.UNAVAILABLE, health.status)
+    }
+
+    @Test
+    fun rejectsUnknownHealthStatus() {
+        // Garage が値を増やした場合は概況の health セクションだけが Failed に落ちる。
+        // 他のセクションの描画は妨げない。
+        assertFailsWith<Exception> {
+            json.decodeFromString<ClusterHealth>(
+                """
+                {"status":"something-new","knownNodes":1,"connectedNodes":1,"storageNodes":1,
+                 "storageNodesUp":1,"partitions":256,"partitionsQuorum":256,"partitionsAllOk":256}
+                """.trimIndent(),
+            )
+        }
     }
 
     @Test
@@ -92,27 +120,27 @@ class GarageModelTest {
     }
 
     @Test
-    fun decodesAdminTokenInfo() {
-        val info = json.decodeFromString<AdminTokenInfo>(
+    fun decodesAdminToken() {
+        val token = json.decodeFromString<AdminToken>(
             """
             {"id":"tok1","name":"alice","scope":["ListBuckets","GetBucketInfo"],
              "expired":false,"created":"2026-01-01T00:00:00Z","expiration":"2026-12-31T23:59:59Z"}
             """.trimIndent(),
         )
 
-        assertEquals("alice", info.name)
-        assertEquals(listOf("ListBuckets", "GetBucketInfo"), info.scope)
-        assertEquals(false, info.expired)
+        assertEquals("alice", token.name)
+        assertEquals(listOf("ListBuckets", "GetBucketInfo"), token.scope)
+        assertEquals(false, token.expired)
     }
 
     @Test
-    fun decodesAdminTokenInfoWithoutOptionalFields() {
-        val info = json.decodeFromString<AdminTokenInfo>(
+    fun decodesAdminTokenWithoutOptionalFields() {
+        val token = json.decodeFromString<AdminToken>(
             """{"name":"bob","scope":["*"],"expired":false}""",
         )
 
-        assertNull(info.expiration)
-        assertNull(info.created)
-        assertNull(info.id)
+        assertNull(token.expiration)
+        assertNull(token.created)
+        assertNull(token.id)
     }
 }

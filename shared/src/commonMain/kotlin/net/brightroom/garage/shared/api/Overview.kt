@@ -2,6 +2,7 @@ package net.brightroom.garage.shared.api
 
 import kotlinx.serialization.Serializable
 import net.brightroom.garage.shared.model.garage.ClusterHealth
+import net.brightroom.garage.shared.model.garage.ClusterHealthStatus
 import net.brightroom.garage.shared.model.garage.NodeResp
 
 /**
@@ -69,44 +70,51 @@ fun NodeResp.toSummary(): NodeSummary =
  * 判定には [Overview] が運ぶ情報しか使わない。取得できなかったセクション
  * （403 や失敗）については何も主張しない。
  */
-fun Overview.alerts(): List<OverviewAlert> = buildList {
-    health.dataOrNull()?.let { h ->
-        when {
-            h.status == "unavailable" ->
-                add(OverviewAlert(AlertSeverity.ERROR, "一部のパーティションで書き込みquorumが得られていません"))
+fun Overview.alerts(): List<OverviewAlert> = listOfNotNull(
+    health.dataOrNull()?.let(::healthAlert),
+    nodes.dataOrNull()?.let(::downNodesAlert),
+    layout.dataOrNull()?.let(::stagedChangesAlert),
+    blockErrors.dataOrNull()?.let(::blockErrorsAlert),
+)
 
-            h.partitionsQuorum < h.partitions ->
-                add(
-                    OverviewAlert(
-                        AlertSeverity.ERROR,
-                        "${h.partitions - h.partitionsQuorum} 個のパーティションでquorumが不足しています",
-                    ),
-                )
+private fun healthAlert(health: ClusterHealth): OverviewAlert? {
+    val missingQuorum = health.partitions - health.partitionsQuorum
 
-            h.status == "degraded" ->
-                add(OverviewAlert(AlertSeverity.WARNING, "一部のストレージノードに接続できていません"))
-        }
+    return when {
+        health.status == ClusterHealthStatus.UNAVAILABLE ->
+            OverviewAlert(AlertSeverity.ERROR, "一部のパーティションで書き込みquorumが得られていません")
+
+        missingQuorum > 0 ->
+            OverviewAlert(AlertSeverity.ERROR, "$missingQuorum 個のパーティションでquorumが不足しています")
+
+        health.status == ClusterHealthStatus.DEGRADED ->
+            OverviewAlert(AlertSeverity.WARNING, "一部のストレージノードに接続できていません")
+
+        else -> null
     }
+}
 
-    nodes.dataOrNull()?.filter { !it.isUp }?.takeIf { it.isNotEmpty() }?.let { down ->
-        add(
-            OverviewAlert(
-                AlertSeverity.ERROR,
-                "${down.size} 台のノードがダウンしています: ${down.joinToString { it.hostname ?: it.id }}",
-            ),
-        )
-    }
+private fun downNodesAlert(nodes: List<NodeSummary>): OverviewAlert? {
+    val down = nodes.filterNot { it.isUp }
+    if (down.isEmpty()) return null
 
-    layout.dataOrNull()?.takeIf { it.stagedChanges > 0 }?.let { l ->
-        add(
-            OverviewAlert(
-                AlertSeverity.WARNING,
-                "レイアウト v${l.version} に ${l.stagedChanges} 件の未適用の変更があります",
-            ),
-        )
-    }
+    return OverviewAlert(
+        AlertSeverity.ERROR,
+        "${down.size} 台のノードがダウンしています: ${down.joinToString { it.hostname ?: it.id }}",
+    )
+}
 
-    blockErrors.dataOrNull()?.takeIf { it > 0 }?.let { count ->
-        add(OverviewAlert(AlertSeverity.WARNING, "$count 件のブロックで再同期エラーが発生しています"))
-    }
+private fun stagedChangesAlert(layout: LayoutSummary): OverviewAlert? {
+    if (layout.stagedChanges == 0) return null
+
+    return OverviewAlert(
+        AlertSeverity.WARNING,
+        "レイアウト v${layout.version} に ${layout.stagedChanges} 件の未適用の変更があります",
+    )
+}
+
+private fun blockErrorsAlert(count: Int): OverviewAlert? {
+    if (count == 0) return null
+
+    return OverviewAlert(AlertSeverity.WARNING, "$count 件のブロックで再同期エラーが発生しています")
 }
