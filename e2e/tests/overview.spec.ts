@@ -1,18 +1,12 @@
 import { test, expect } from "@playwright/test";
+import { adminToken, signIn } from "./helpers";
 
-const token = process.env.E2E_ADMIN_TOKEN;
+const token = adminToken();
 
 test.describe("Overview", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("button", { name: "ログイン" })).toBeVisible({
-      timeout: 30_000,
-    });
-    await page.getByRole("textbox").first().fill(token!, { force: true });
-    await page.getByRole("button", { name: "ログイン" }).click({ force: true });
-    await expect(page.getByRole("button", { name: "ログアウト" })).toBeVisible({
-      timeout: 15_000,
-    });
+    await signIn(page, token);
   });
 
   test("shows cluster figures", async ({ page }) => {

@@ -1,17 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { adminToken, signIn, waitForLoginScreen } from "./helpers";
 
-const token = process.env.E2E_ADMIN_TOKEN;
-
-async function signIn(page: import("@playwright/test").Page) {
-  await expect(page.getByRole("button", { name: "ログイン" })).toBeVisible({
-    timeout: 30_000,
-  });
-  await page.getByRole("textbox").first().fill(token!, { force: true });
-  await page.getByRole("button", { name: "ログイン" }).click({ force: true });
-  await expect(page.getByRole("button", { name: "ログアウト" })).toBeVisible({
-    timeout: 15_000,
-  });
-}
+const token = adminToken();
 
 test.describe("Navigation", () => {
   test("serves the app for a deep link instead of a 404", async ({ page }) => {
@@ -21,14 +11,12 @@ test.describe("Navigation", () => {
     const response = await page.goto("/login");
 
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole("button", { name: "ログイン" })).toBeVisible({
-      timeout: 30_000,
-    });
+    await waitForLoginScreen(page);
   });
 
   test("shows the sidebar after signing in", async ({ page }) => {
     await page.goto("/");
-    await signIn(page);
+    await signIn(page, token);
 
     await expect(page.getByText("Garage", { exact: true })).toBeVisible();
     // 「概況」はサイドバーと見出しの両方に出る
@@ -37,7 +25,7 @@ test.describe("Navigation", () => {
 
   test("shows a not-found screen for an unknown client route", async ({ page }) => {
     await page.goto("/");
-    await signIn(page);
+    await signIn(page, token);
 
     await page.goto("/nope");
 
@@ -68,6 +56,7 @@ test.describe("Navigation", () => {
     const body = await response.json();
     expect(body.status).toBe(401);
     expect(body.title).toBe("Unauthorized");
+    expect(body.type).toBeUndefined();
   });
 
   test("rejects api access with an invalid token as 401", async ({ request }) => {
