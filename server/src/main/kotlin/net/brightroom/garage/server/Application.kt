@@ -6,6 +6,7 @@ import net.brightroom.garage.server.plugins.configureCallLogging
 import net.brightroom.garage.server.plugins.configureDi
 import net.brightroom.garage.server.plugins.configureRouting
 import net.brightroom.garage.server.plugins.configureSerialization
+import net.brightroom.garage.server.plugins.configureStaticFiles
 import net.brightroom.garage.server.plugins.configureStatusPages
 
 fun main(args: Array<String>) {
@@ -18,4 +19,5 @@ fun Application.module() {
     configureDi()
     configureStatusPages()
     configureRouting()
+    configureStaticFiles()
 }
