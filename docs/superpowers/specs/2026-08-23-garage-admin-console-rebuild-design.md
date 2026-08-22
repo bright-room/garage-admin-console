@@ -262,7 +262,6 @@ data class Overview(
     val layout: Section<LayoutSummary>,      // version と staged の有無
     val storage: Section<StorageSummary>,    // bucket 数 / key 数
     val blockErrors: Section<Int>,
-    val workers: Section<WorkerSummary>,
 )
 ```
 
@@ -312,6 +311,7 @@ History API と `popstate` を扱う薄い Router を手書きする。ライブ
 1. **最上段は「いま気にすべきこと」専用の帯**。正常時は 1 行の静かな表示になり、異常時のみ主張する
    - 対象: layout が staged のまま未適用 / block resync エラー / ノードダウン / quorum 不足
    - いずれも 7.2 の `Overview` が運ぶ情報だけで判定できる範囲に留める。トークンやキーの期限切れ監視は、`ListAdminTokens` の追加取得が必要になるため対象外とする
+   - ワーカーの状態も概況には出さない（異常帯の対象外であり、`WorkerStateResp` は文字列とオブジェクトの oneOf でカスタム serializer を要するため）。ワーカーは `/workers` 画面で扱う
 2. 主要数値（nodes up、health、bucket 数、key 数）
 3. ノード一覧（ゾーン・容量バー付き）
 
