@@ -14,7 +14,8 @@
 
 - 対象 Garage: **v2.3.0**（Admin API v2）。仕様の参照元は `https://garagehq.deuxfleurs.fr/api/garage-admin-v2.json`
 - バージョンは `gradle/libs.versions.toml` の既存値を変更しない: Kotlin `2.4.10` / Ktor `3.5.2` / Compose Multiplatform `1.11.1` / kotlinx-serialization `1.11.0` / kotlinx-coroutines `1.11.0` / kotlinx-datetime `0.8.0-0.6.x-compat` / aws-sdk-kotlin `1.8.31` / logback `1.6.3`
-- **新しいライブラリを追加しない。** ルーティングは手書き、状態管理ライブラリは使わない
+- **外部のライブラリを新たに追加しない。** ルーティングは手書き、状態管理ライブラリは使わない。既に使っている Ktor / kotlinx の別アーティファクト（Task 1 で追加する `io.ktor:ktor-http` など）は対象外
+- **クライアントとサーバー間のエラーは RFC 9457（Problem Details for HTTP APIs）に準拠する。** `application/problem+json` を用い、ラッパーを被せず、独自のエラーコード enum を定義しない。ステータスは Ktor の `HttpStatusCode` を型として扱う（spec §7.1）
 - **縦切りで作る。** spec §12 の実装順序は目安であり、Phase 1 で作るモデルは `/api/session` と `/api/overview` が必要とする分だけに限る。46 API 分のモデルを先に書かない
 - パッケージルート: `net.brightroom.garage.shared` / `net.brightroom.garage.server` / `net.brightroom.garage.web`
 - `jvmToolchain(21)`（server）
@@ -52,7 +53,7 @@
 | ファイル | 責務 |
 |---|---|
 | `shared/build.gradle.kts` | 依存を `api` で公開する形に変更 |
-| `api/ApiError.kt` | エラーの正規化形（`ErrorCode` / `ApiError` / `ApiErrorResponse`） |
+| `api/ProblemDetails.kt` | RFC 9457 のエラー形式と `HttpStatusCode` の serializer |
 | `api/Section.kt` | `/api/overview` のセクション単位の成否 |
 | `api/SessionInfo.kt` | ログイン中のトークン情報と scope 判定 |
 | `api/Overview.kt` | 概況の集約 DTO と要約型 |
@@ -209,23 +210,42 @@ $(echo 'GetCurrentAdminTokenInfo の master token に対する挙動: <Step 5 �
 
 ---
 
-## Task 1: `:shared` のビルド設定とエラーの正規化形
+## Task 1: `:shared` のビルド設定と RFC 9457 のエラー形式
 
 **Files:**
+- Modify: `gradle/libs.versions.toml`（`ktor-http` を追加）
 - Create: `shared/build.gradle.kts`（既存を上書き）
-- Create: `shared/src/commonMain/kotlin/net/brightroom/garage/shared/api/ApiError.kt`
-- Test: `shared/src/commonTest/kotlin/net/brightroom/garage/shared/api/ApiErrorTest.kt`
+- Create: `shared/src/commonMain/kotlin/net/brightroom/garage/shared/api/ProblemDetails.kt`
+- Test: `shared/src/commonTest/kotlin/net/brightroom/garage/shared/api/ProblemDetailsTest.kt`
 
 **Interfaces:**
 - Consumes: なし
 - Produces:
-  - `enum class ErrorCode { UNAUTHORIZED, FORBIDDEN, NOT_FOUND, BAD_REQUEST, GARAGE_ERROR, INTERNAL }`
-  - `data class ApiError(val code: ErrorCode, val message: String, val operation: String? = null)`
-  - `data class ApiErrorResponse(val error: ApiError)`
+  - `object HttpStatusCodeSerializer : KSerializer<HttpStatusCode>` — RFC 9457 の `status`（JSON number）と Ktor の `HttpStatusCode` を相互変換する
+  - `data class ProblemDetails(title: String, status: HttpStatusCode, detail: String? = null, type: String? = null, instance: String? = null, operation: String? = null)`
+  - `fun ProblemDetails.Companion.of(status: HttpStatusCode, detail: String? = null, instance: String? = null, operation: String? = null): ProblemDetails`
 
-- [ ] **Step 1: `shared/build.gradle.kts` を書く**
+**エラー形式は RFC 9457（Problem Details for HTTP APIs）に準拠する**（spec §7.1）。
 
-依存を `api` で公開する。`:server` と `:web` が `Instant` と `JsonElement` を直接扱うため。
+- **ラッパーを被せない。** problem details object をレスポンスのトップレベルに置く
+- **`type` は省略する。** RFC 9457 は省略時を `about:blank` とみなし、その場合 `title` は「その HTTP ステータスの推奨理由句であるべき」と定めている。Ktor の `HttpStatusCode.description` がその理由句そのものなので、`of()` はこれを `title` に使う
+- **独自のエラーコード enum は定義しない。** 分類は `status` が担う。Kotlin 側では Ktor の `HttpStatusCode` を型として扱い、JSON では仕様どおり数値にする
+- `operation` は拡張メンバー。RFC 9457 は拡張を許可し、クライアントは未知の拡張を無視してよいと定めている
+
+- [ ] **Step 1: `gradle/libs.versions.toml` に `ktor-http` を追加する**
+
+`[libraries]` の Ktor Client の並びの直前（または直後）に 1 行加える。バージョンは既存の `ktor` を参照するため、新しいバージョン定義は不要。
+
+```toml
+# Ktor Common
+ktor-http = { module = "io.ktor:ktor-http", version.ref = "ktor" }
+```
+
+`HttpStatusCode` を `:shared` の DTO で使うために必要になる。`io.ktor:ktor-http` は multiplatform で、jvm と wasmJs の双方をサポートする。
+
+- [ ] **Step 2: `shared/build.gradle.kts` を書く**
+
+依存を `api` で公開する。`:server` と `:web` が `Instant` / `JsonElement` / `HttpStatusCode` を直接扱うため。
 
 ```kotlin
 @file:OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
@@ -245,6 +265,7 @@ kotlin {
         commonMain.dependencies {
             api(libs.kotlinx.serialization.json)
             api(libs.kotlinx.datetime)
+            api(libs.ktor.http)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -253,100 +274,193 @@ kotlin {
 }
 ```
 
-- [ ] **Step 2: 失敗するテストを書く**
+- [ ] **Step 3: 失敗するテストを書く**
 
-`shared/src/commonTest/kotlin/net/brightroom/garage/shared/api/ApiErrorTest.kt`
+`shared/src/commonTest/kotlin/net/brightroom/garage/shared/api/ProblemDetailsTest.kt`
 
 ```kotlin
 package net.brightroom.garage.shared.api
 
+import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class ApiErrorTest {
-    private val json = Json { ignoreUnknownKeys = true }
+class ProblemDetailsTest {
+
+    // explicitNulls = false はサーバーと web の実際の設定に合わせている。
+    // 省略可能なメンバーを null で出力しないことが RFC 9457 の形として自然。
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
 
     @Test
-    fun encodesErrorResponseWithOperation() {
-        val response = ApiErrorResponse(
-            ApiError(ErrorCode.FORBIDDEN, "insufficient scope", "GetKeyInfo"),
+    fun encodesStatusAsNumberAndOmitsAbsentMembers() {
+        val problem = ProblemDetails.of(
+            status = HttpStatusCode.Forbidden,
+            detail = "insufficient scope",
+            instance = "/api/overview",
+            operation = "GetKeyInfo",
         )
 
         assertEquals(
-            """{"error":{"code":"FORBIDDEN","message":"insufficient scope","operation":"GetKeyInfo"}}""",
-            json.encodeToString(response),
+            """{"title":"Forbidden","status":403,"detail":"insufficient scope",""" +
+                """"instance":"/api/overview","operation":"GetKeyInfo"}""",
+            json.encodeToString(problem),
         )
     }
 
     @Test
-    fun omitsOperationWhenAbsent() {
-        val response = ApiErrorResponse(ApiError(ErrorCode.INTERNAL, "boom"))
+    fun titleDefaultsToTheStatusReasonPhrase() {
+        // type を省略した場合、RFC 9457 は about:blank とみなし、
+        // title はその status の推奨理由句であるべきと定めている
+        assertEquals("Not Found", ProblemDetails.of(HttpStatusCode.NotFound).title)
+        assertEquals("Unauthorized", ProblemDetails.of(HttpStatusCode.Unauthorized).title)
+        assertEquals(
+            "Internal Server Error",
+            ProblemDetails.of(HttpStatusCode.InternalServerError).title,
+        )
+    }
 
-        val decoded = json.decodeFromString<ApiErrorResponse>(json.encodeToString(response))
+    @Test
+    fun omitsTypeSoItDefaultsToAboutBlank() {
+        val encoded = json.encodeToString(ProblemDetails.of(HttpStatusCode.NotFound))
 
-        assertEquals(ErrorCode.INTERNAL, decoded.error.code)
-        assertEquals("boom", decoded.error.message)
-        assertEquals(null, decoded.error.operation)
+        assertEquals("""{"title":"Not Found","status":404}""", encoded)
+    }
+
+    @Test
+    fun roundTripsThroughJson() {
+        val problem = ProblemDetails.of(
+            status = HttpStatusCode.BadGateway,
+            detail = "upstream failed",
+            operation = "GetClusterStatus",
+        )
+
+        val decoded = json.decodeFromString<ProblemDetails>(json.encodeToString(problem))
+
+        assertEquals(problem, decoded)
+        assertEquals(HttpStatusCode.BadGateway, decoded.status)
+        assertEquals(502, decoded.status.value)
+    }
+
+    @Test
+    fun decodesUnknownStatusCodes() {
+        val decoded = json.decodeFromString<ProblemDetails>(
+            """{"title":"Weird","status":499}""",
+        )
+
+        assertEquals(499, decoded.status.value)
     }
 }
 ```
 
-- [ ] **Step 3: テストが失敗することを確認する**
+- [ ] **Step 4: テストが失敗することを確認する**
 
 ```bash
 ./gradlew :shared:jvmTest
 ```
 
-期待: コンパイルエラー（`ApiError` などが未定義）で FAIL。
+期待: コンパイルエラー（`ProblemDetails` が未定義）で FAIL。
 
-- [ ] **Step 4: 実装する**
+- [ ] **Step 5: 実装する**
 
-`shared/src/commonMain/kotlin/net/brightroom/garage/shared/api/ApiError.kt`
+`shared/src/commonMain/kotlin/net/brightroom/garage/shared/api/ProblemDetails.kt`
 
 ```kotlin
 package net.brightroom.garage.shared.api
 
+import io.ktor.http.HttpStatusCode
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 
-/** サーバーが返すエラーの分類。HTTP ステータスとは独立に、UI が扱いを決めるために使う。 */
-@Serializable
-enum class ErrorCode {
-    UNAUTHORIZED,
-    FORBIDDEN,
-    NOT_FOUND,
-    BAD_REQUEST,
-    GARAGE_ERROR,
-    INTERNAL,
+/** RFC 9457 の `status` は JSON number である。Kotlin 側では型のある [HttpStatusCode] を使う。 */
+object HttpStatusCodeSerializer : KSerializer<HttpStatusCode> {
+
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("io.ktor.http.HttpStatusCode", PrimitiveKind.INT)
+
+    override fun serialize(encoder: Encoder, value: HttpStatusCode) {
+        encoder.encodeInt(value.value)
+    }
+
+    override fun deserialize(decoder: Decoder): HttpStatusCode =
+        HttpStatusCode.fromValue(decoder.decodeInt())
 }
 
 /**
- * @param operation エラーの原因となった Garage の operation 名。サーバー内部で起きたエラーでは null。
+ * RFC 9457 (Problem Details for HTTP APIs) のエラー表現。
+ *
+ * `application/problem+json` としてレスポンスのトップレベルに置く。ラッパーは被せない。
+ *
+ * @param title 問題の種類を表す短い要約。`type` を省略した場合は
+ *   その status の推奨理由句であるべきと RFC 9457 が定めている。
+ * @param type 問題の種類を識別する URI。省略時は `about:blank` とみなされる。
+ *   コンソール固有の問題型を定義するまでは常に省略する。
+ * @param detail この発生に固有の説明。Garage が返した本文を入れる。
+ * @param instance この発生を識別する URI。リクエストパスを入れる。
+ * @param operation 拡張メンバー。原因となった Garage の operation 名。
+ *   サーバー内部で起きたエラーでは null。
  */
 @Serializable
-data class ApiError(
-    val code: ErrorCode,
-    val message: String,
+data class ProblemDetails(
+    val title: String,
+    @Serializable(with = HttpStatusCodeSerializer::class)
+    val status: HttpStatusCode,
+    val detail: String? = null,
+    val type: String? = null,
+    val instance: String? = null,
     val operation: String? = null,
-)
+) {
+    companion object
+}
 
-@Serializable
-data class ApiErrorResponse(val error: ApiError)
+/** `type` を省略し、`title` に status の推奨理由句を用いる標準的な組み立て方。 */
+fun ProblemDetails.Companion.of(
+    status: HttpStatusCode,
+    detail: String? = null,
+    instance: String? = null,
+    operation: String? = null,
+): ProblemDetails = ProblemDetails(
+    title = status.description,
+    status = status,
+    detail = detail,
+    instance = instance,
+    operation = operation,
+)
 ```
 
-- [ ] **Step 5: テストが通ることを確認する**
+- [ ] **Step 6: テストが通ることを確認する**
 
 ```bash
 ./gradlew :shared:jvmTest
 ```
 
-期待: PASS。
+期待: 5 テストすべて PASS。
 
-- [ ] **Step 6: コミット**
+`encodesStatusAsNumberAndOmitsAbsentMembers` が失敗する場合、原因はフィールドの出力順序である可能性が高い。kotlinx.serialization は宣言順に出力するため、`ProblemDetails` の宣言順（title, status, detail, type, instance, operation）と期待文字列を一致させること。
+
+- [ ] **Step 7: wasmJs でコンパイルが通ることを確認する**
+
+`:shared` に ktor-http を追加したため、wasmJs 側でも解決できることを確かめる。
 
 ```bash
-git add shared/
-git commit -m "feat(shared): エラーの正規化形を追加"
+./gradlew :shared:compileKotlinWasmJs
+```
+
+期待: BUILD SUCCESSFUL。
+
+- [ ] **Step 8: コミット**
+
+```bash
+git add gradle/ shared/
+git commit -m "feat(shared): RFC 9457 準拠のエラー形式を追加"
 ```
 
 ---
@@ -1567,9 +1681,9 @@ git commit -m "feat(server): アプリケーションの骨格と設定を追加
 - Test: `server/src/test/kotlin/net/brightroom/garage/server/garage/GarageAdminClientTest.kt`
 
 **Interfaces:**
-- Consumes: `AppConfig`（Task 6）, `ErrorCode`（Task 1）
+- Consumes: `AppConfig`（Task 6）
 - Produces:
-  - `class GarageException(code: ErrorCode, operation: String, status: HttpStatusCode, message: String) : RuntimeException`
+  - `class GarageException(status: HttpStatusCode, operation: String, message: String) : RuntimeException`
   - `class GarageAdminClient(endpoint: String, engine: HttpClientEngine = CIO.create())`
     - `suspend fun get(token: String, operation: String, params: Map<String, String> = emptyMap()): HttpResponse`
     - `suspend fun post(token: String, operation: String, body: JsonElement? = null, params: Map<String, String> = emptyMap()): HttpResponse`
@@ -1594,7 +1708,6 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.http.ContentType
 import kotlinx.coroutines.test.runTest
-import net.brightroom.garage.shared.api.ErrorCode
 import net.brightroom.garage.shared.model.garage.ClusterHealth
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -1646,7 +1759,7 @@ class GarageAdminClientTest {
     }
 
     @Test
-    fun mapsForbiddenToErrorCode() = runTest {
+    fun carriesForbiddenStatusAndOperation() = runTest {
         val engine = MockEngine {
             respond("insufficient scope", HttpStatusCode.Forbidden)
         }
@@ -1656,12 +1769,12 @@ class GarageAdminClientTest {
             client.get("tok", "GetKeyInfo").requireSuccess("GetKeyInfo")
         }
 
-        assertEquals(ErrorCode.FORBIDDEN, failure.code)
+        assertEquals(HttpStatusCode.Forbidden, failure.status)
         assertEquals("GetKeyInfo", failure.operation)
     }
 
     @Test
-    fun mapsUnauthorizedToErrorCode() = runTest {
+    fun carriesUnauthorizedStatus() = runTest {
         val engine = MockEngine { respond("bad token", HttpStatusCode.Unauthorized) }
         val client = GarageAdminClient("http://garage.test:3903", engine)
 
@@ -1669,11 +1782,11 @@ class GarageAdminClientTest {
             client.get("tok", "GetClusterHealth").requireSuccess("GetClusterHealth")
         }
 
-        assertEquals(ErrorCode.UNAUTHORIZED, failure.code)
+        assertEquals(HttpStatusCode.Unauthorized, failure.status)
     }
 
     @Test
-    fun mapsServerErrorToGarageError() = runTest {
+    fun carriesResponseBodyAsMessage() = runTest {
         val engine = MockEngine { respond("boom", HttpStatusCode.InternalServerError) }
         val client = GarageAdminClient("http://garage.test:3903", engine)
 
@@ -1681,8 +1794,20 @@ class GarageAdminClientTest {
             client.get("tok", "GetClusterStatus").requireSuccess("GetClusterStatus")
         }
 
-        assertEquals(ErrorCode.GARAGE_ERROR, failure.code)
+        assertEquals(HttpStatusCode.InternalServerError, failure.status)
         assertEquals("boom", failure.message)
+    }
+
+    @Test
+    fun fallsBackToStatusDescriptionWhenBodyIsEmpty() = runTest {
+        val engine = MockEngine { respond("", HttpStatusCode.Forbidden) }
+        val client = GarageAdminClient("http://garage.test:3903", engine)
+
+        val failure = assertFailsWith<GarageException> {
+            client.get("tok", "GetKeyInfo").requireSuccess("GetKeyInfo")
+        }
+
+        assertEquals("Forbidden", failure.message)
     }
 
     @Test
@@ -1723,27 +1848,18 @@ class GarageAdminClientTest {
 package net.brightroom.garage.server.garage
 
 import io.ktor.http.HttpStatusCode
-import net.brightroom.garage.shared.api.ErrorCode
 
 /**
  * Garage が非 2xx を返したことを表す。
  *
- * scope 制限による 403 は正常系であり、呼び出し側は [code] で扱いを分ける。
+ * scope 制限による 403 は正常系であり、呼び出し側は [status] で扱いを分ける。
+ * Garage が返したステータスをそのまま運ぶ（独自のエラー分類は設けない）。
  */
 class GarageException(
-    val code: ErrorCode,
-    val operation: String,
     val status: HttpStatusCode,
+    val operation: String,
     override val message: String,
 ) : RuntimeException(message)
-
-internal fun HttpStatusCode.toErrorCode(): ErrorCode = when (value) {
-    401 -> ErrorCode.UNAUTHORIZED
-    403 -> ErrorCode.FORBIDDEN
-    404 -> ErrorCode.NOT_FOUND
-    400, 409, 422 -> ErrorCode.BAD_REQUEST
-    else -> ErrorCode.GARAGE_ERROR
-}
 ```
 
 `server/src/main/kotlin/net/brightroom/garage/server/garage/GarageAdminClient.kt`
@@ -1822,9 +1938,8 @@ suspend fun HttpResponse.requireSuccess(operation: String): HttpResponse {
 
     val detail = runCatching { bodyAsText() }.getOrDefault("")
     throw GarageException(
-        code = status.toErrorCode(),
-        operation = operation,
         status = status,
+        operation = operation,
         message = detail.ifBlank { status.description },
     )
 }
@@ -1856,7 +1971,7 @@ import に `kotlinx.serialization.DeserializationStrategy` を加えること。
 ./gradlew :server:test --tests '*GarageAdminClientTest*'
 ```
 
-期待: 6 テストすべて PASS。
+期待: 7 テストすべて PASS。
 
 - [ ] **Step 5: コミット**
 
@@ -1878,12 +1993,15 @@ git commit -m "feat(server): Garage Admin API の型付きクライアントを�
 - Test: `server/src/test/kotlin/net/brightroom/garage/server/plugins/CallLoggingTest.kt`
 
 **Interfaces:**
-- Consumes: `GarageException`（Task 7）, `ApiErrorResponse`（Task 1）
+- Consumes: `GarageException`（Task 7）, `ProblemDetails` / `of()`（Task 1）
 - Produces:
   - `class MissingTokenException : RuntimeException`
   - `fun ApplicationCall.adminToken(): String` — `Authorization: Bearer …` からトークンを取り出す。無い / 形式不正なら `MissingTokenException`
-  - `fun Application.configureStatusPages()` — 全エラーを `{"error":{...}}` に正規化する
+  - `suspend fun ApplicationCall.respondProblem(problem: ProblemDetails)` — `application/problem+json` で返す
+  - `fun Application.configureStatusPages()` — 全エラーを RFC 9457 形式に正規化する
   - `fun Application.configureCallLogging()` — リクエストヘッダをログに出さない
+
+**Content-Type は `application/problem+json` にする**（RFC 9457）。ContentNegotiation の `call.respond` では `application/json` になってしまうため、`respondText` で明示する。
 
 **ログ衛生は spec §10 の重点検証項目である。** 利用者のトークンが毎回のポーリングで転送されるため、ログに残してはならない。
 
@@ -1900,17 +2018,17 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import net.brightroom.garage.server.api.MissingTokenException
 import net.brightroom.garage.server.garage.GarageException
-import net.brightroom.garage.shared.api.ApiErrorResponse
-import net.brightroom.garage.shared.api.ErrorCode
+import net.brightroom.garage.shared.api.ProblemDetails
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class StatusPagesTest {
 
-    private fun errorOf(body: String): ApiErrorResponse =
+    private fun problemOf(body: String): ProblemDetails =
         GarageJson.decodeFromString(body)
 
     @Test
@@ -1921,9 +2039,8 @@ class StatusPagesTest {
             routing {
                 get("/boom") {
                     throw GarageException(
-                        code = ErrorCode.FORBIDDEN,
-                        operation = "GetKeyInfo",
                         status = HttpStatusCode.Forbidden,
+                        operation = "GetKeyInfo",
                         message = "insufficient scope",
                     )
                 }
@@ -1933,10 +2050,28 @@ class StatusPagesTest {
         val response = client.get("/boom")
 
         assertEquals(HttpStatusCode.Forbidden, response.status)
-        val error = errorOf(response.bodyAsText()).error
-        assertEquals(ErrorCode.FORBIDDEN, error.code)
-        assertEquals("GetKeyInfo", error.operation)
-        assertEquals("insufficient scope", error.message)
+        val problem = problemOf(response.bodyAsText())
+        assertEquals(HttpStatusCode.Forbidden, problem.status)
+        assertEquals("Forbidden", problem.title)
+        assertEquals("insufficient scope", problem.detail)
+        assertEquals("GetKeyInfo", problem.operation)
+        assertEquals("/boom", problem.instance)
+    }
+
+    @Test
+    fun usesProblemJsonMediaType() = testApplication {
+        application {
+            configureSerialization()
+            configureStatusPages()
+            routing {
+                get("/boom") { throw MissingTokenException() }
+            }
+        }
+
+        val response = client.get("/boom")
+
+        // RFC 9457 の定める media type
+        assertEquals("application/problem+json", response.contentType()?.withoutParameters()?.toString())
     }
 
     @Test
@@ -1952,7 +2087,7 @@ class StatusPagesTest {
         val response = client.get("/boom")
 
         assertEquals(HttpStatusCode.Unauthorized, response.status)
-        assertEquals(ErrorCode.UNAUTHORIZED, errorOf(response.bodyAsText()).error.code)
+        assertEquals(HttpStatusCode.Unauthorized, problemOf(response.bodyAsText()).status)
     }
 
     @Test
@@ -1968,9 +2103,11 @@ class StatusPagesTest {
         val response = client.get("/boom")
 
         assertEquals(HttpStatusCode.InternalServerError, response.status)
-        val error = errorOf(response.bodyAsText()).error
-        assertEquals(ErrorCode.INTERNAL, error.code)
-        assertEquals(null, error.operation)
+        val problem = problemOf(response.bodyAsText())
+        assertEquals(HttpStatusCode.InternalServerError, problem.status)
+        assertEquals("Internal Server Error", problem.title)
+        // 内部エラーの詳細は外に出さない
+        assertEquals(null, problem.operation)
     }
 
     @Test
@@ -1986,7 +2123,22 @@ class StatusPagesTest {
         val response = client.get("/api/does-not-exist")
 
         assertEquals(HttpStatusCode.NotFound, response.status)
-        assertEquals(ErrorCode.NOT_FOUND, errorOf(response.bodyAsText()).error.code)
+        assertEquals(HttpStatusCode.NotFound, problemOf(response.bodyAsText()).status)
+    }
+
+    @Test
+    fun omitsTypeMemberSoItDefaultsToAboutBlank() = testApplication {
+        application {
+            configureSerialization()
+            configureStatusPages()
+            routing {
+                get("/boom") { throw MissingTokenException() }
+            }
+        }
+
+        val body = client.get("/boom").bodyAsText()
+
+        assertEquals(false, body.contains("\"type\""))
     }
 }
 ```
@@ -2070,11 +2222,24 @@ class CallLoggingTest {
 ```kotlin
 package net.brightroom.garage.server.api
 
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.response.respondText
+import net.brightroom.garage.server.plugins.GarageJson
+import net.brightroom.garage.shared.api.ProblemDetails
 
 /** `Authorization` ヘッダが無い、または Bearer 形式でない。 */
 class MissingTokenException : RuntimeException("Authorization ヘッダに Bearer トークンが必要です")
+
+/** RFC 9457 の定める `application/problem+json` で返す。 */
+suspend fun ApplicationCall.respondProblem(problem: ProblemDetails) {
+    respondText(
+        text = GarageJson.encodeToString(problem),
+        contentType = ContentType("application", "problem+json"),
+        status = problem.status,
+    )
+}
 
 private const val BEARER_PREFIX = "Bearer "
 
@@ -2107,49 +2272,58 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.path
-import io.ktor.server.response.respond
 import net.brightroom.garage.server.api.MissingTokenException
+import net.brightroom.garage.server.api.respondProblem
 import net.brightroom.garage.server.garage.GarageException
-import net.brightroom.garage.shared.api.ApiError
-import net.brightroom.garage.shared.api.ApiErrorResponse
-import net.brightroom.garage.shared.api.ErrorCode
+import net.brightroom.garage.shared.api.ProblemDetails
+import net.brightroom.garage.shared.api.of
 
 /**
- * すべてのエラーを `{"error":{"code":…,"message":…,"operation":…}}` に正規化する。
+ * すべてのエラーを RFC 9457 の problem details に正規化する。
  *
  * Garage のエラー形をそのままブラウザへ漏らさないことが目的。
  */
 fun Application.configureStatusPages() {
     install(StatusPages) {
         exception<GarageException> { call, cause ->
-            call.respond(
-                cause.status,
-                ApiErrorResponse(ApiError(cause.code, cause.message, cause.operation)),
+            call.respondProblem(
+                ProblemDetails.of(
+                    status = cause.status,
+                    detail = cause.message,
+                    instance = call.request.path(),
+                    operation = cause.operation,
+                ),
             )
         }
 
         exception<MissingTokenException> { call, cause ->
-            call.respond(
-                HttpStatusCode.Unauthorized,
-                ApiErrorResponse(ApiError(ErrorCode.UNAUTHORIZED, cause.message ?: "認証が必要です")),
+            call.respondProblem(
+                ProblemDetails.of(
+                    status = HttpStatusCode.Unauthorized,
+                    detail = cause.message,
+                    instance = call.request.path(),
+                ),
             )
         }
 
         exception<Throwable> { call, cause ->
-            // 例外そのものは記録するが、リクエストヘッダは触らない
+            // 例外そのものは記録するが、リクエストヘッダは触らない。
+            // detail に内部の例外メッセージを載せないこと（外に出す情報を絞る）。
             call.application.log.error("Unhandled exception at ${call.request.path()}", cause)
-            call.respond(
-                HttpStatusCode.InternalServerError,
-                ApiErrorResponse(ApiError(ErrorCode.INTERNAL, "サーバー内部でエラーが発生しました")),
+            call.respondProblem(
+                ProblemDetails.of(
+                    status = HttpStatusCode.InternalServerError,
+                    detail = "サーバー内部でエラーが発生しました",
+                    instance = call.request.path(),
+                ),
             )
         }
 
         status(HttpStatusCode.NotFound) { call, status ->
             // 静的ファイルのフォールバックは Task 11 で /api 以外を index.html に流すため、
             // ここへ来るのは実質 /api 配下の未定義パスだけになる
-            call.respond(
-                status,
-                ApiErrorResponse(ApiError(ErrorCode.NOT_FOUND, "エンドポイントが見つかりません")),
+            call.respondProblem(
+                ProblemDetails.of(status = status, instance = call.request.path()),
             )
         }
     }
@@ -2211,7 +2385,7 @@ fun Application.module() {
 ./gradlew :server:test --tests '*StatusPagesTest*' --tests '*CallLoggingTest*'
 ```
 
-期待: 5 テストすべて PASS。
+期待: 7 テストすべて PASS（StatusPages 6 + CallLogging 1）。
 
 `CallLogging` のパッケージが `io.ktor.server.plugins.calllogging` で解決できない場合は `io.ktor.server.plugins.callloging`（Ktor 3.x でパッケージ名が修正された経緯がある）を試す。IDE の補完ではなく、実際にコンパイルが通る方を採用すること。
 
@@ -2304,8 +2478,7 @@ import io.ktor.http.headersOf
 import io.ktor.server.testing.testApplication
 import net.brightroom.garage.server.garageApp
 import net.brightroom.garage.server.plugins.GarageJson
-import net.brightroom.garage.shared.api.ApiErrorResponse
-import net.brightroom.garage.shared.api.ErrorCode
+import net.brightroom.garage.shared.api.ProblemDetails
 import net.brightroom.garage.shared.api.SessionInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -2346,8 +2519,8 @@ class SessionRoutesTest {
         val response = client.get("/api/session")
 
         assertEquals(HttpStatusCode.Unauthorized, response.status)
-        val error: ApiErrorResponse = GarageJson.decodeFromString(response.bodyAsText())
-        assertEquals(ErrorCode.UNAUTHORIZED, error.error.code)
+        val problem: ProblemDetails = GarageJson.decodeFromString(response.bodyAsText())
+        assertEquals(HttpStatusCode.Unauthorized, problem.status)
     }
 
     @Test
@@ -2370,9 +2543,10 @@ class SessionRoutesTest {
         }
 
         assertEquals(HttpStatusCode.Unauthorized, response.status)
-        val error: ApiErrorResponse = GarageJson.decodeFromString(response.bodyAsText())
-        assertEquals(ErrorCode.UNAUTHORIZED, error.error.code)
-        assertEquals("GetCurrentAdminTokenInfo", error.error.operation)
+        val problem: ProblemDetails = GarageJson.decodeFromString(response.bodyAsText())
+        assertEquals(HttpStatusCode.Unauthorized, problem.status)
+        assertEquals("GetCurrentAdminTokenInfo", problem.operation)
+        assertEquals("invalid token", problem.detail)
     }
 
     @Test
@@ -2670,7 +2844,7 @@ class OverviewServiceTest {
             ).build("tok")
         }
 
-        assertEquals(net.brightroom.garage.shared.api.ErrorCode.UNAUTHORIZED, failure.code)
+        assertEquals(HttpStatusCode.Unauthorized, failure.status)
     }
 }
 ```
@@ -2690,6 +2864,7 @@ class OverviewServiceTest {
 ```kotlin
 package net.brightroom.garage.server.api
 
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.builtins.ListSerializer
@@ -2697,7 +2872,7 @@ import kotlinx.serialization.json.JsonArray
 import net.brightroom.garage.server.garage.GarageAdminClient
 import net.brightroom.garage.server.garage.GarageException
 import net.brightroom.garage.server.garage.garageBody
-import net.brightroom.garage.shared.api.ErrorCode
+import net.brightroom.garage.server.garage.garageBodyWith
 import net.brightroom.garage.shared.api.LayoutSummary
 import net.brightroom.garage.shared.api.Overview
 import net.brightroom.garage.shared.api.Section
@@ -2779,9 +2954,9 @@ class OverviewService(private val client: GarageAdminClient) {
         try {
             Section.Loaded(block())
         } catch (e: GarageException) {
-            when (e.code) {
-                ErrorCode.UNAUTHORIZED -> throw e
-                ErrorCode.FORBIDDEN -> Section.Denied(e.operation)
+            when (e.status) {
+                HttpStatusCode.Unauthorized -> throw e
+                HttpStatusCode.Forbidden -> Section.Denied(e.operation)
                 else -> Section.Failed(e.message)
             }
         }
@@ -2896,8 +3071,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
-import net.brightroom.garage.shared.api.ApiErrorResponse
-import net.brightroom.garage.shared.api.ErrorCode
+import net.brightroom.garage.shared.api.ProblemDetails
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -2942,8 +3116,8 @@ class StaticFilesTest {
         val response = client.get("/api/does-not-exist")
 
         assertEquals(HttpStatusCode.NotFound, response.status)
-        val error: ApiErrorResponse = GarageJson.decodeFromString(response.bodyAsText())
-        assertEquals(ErrorCode.NOT_FOUND, error.error.code)
+        val problem: ProblemDetails = GarageJson.decodeFromString(response.bodyAsText())
+        assertEquals(HttpStatusCode.NotFound, problem.status)
     }
 }
 ```
@@ -2967,13 +3141,12 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.http.content.singlePageApplication
 import io.ktor.server.request.path
-import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
-import net.brightroom.garage.shared.api.ApiError
-import net.brightroom.garage.shared.api.ApiErrorResponse
-import net.brightroom.garage.shared.api.ErrorCode
+import net.brightroom.garage.server.api.respondProblem
+import net.brightroom.garage.shared.api.ProblemDetails
+import net.brightroom.garage.shared.api.of
 
 /**
  * wasm の成果物を配信する。
@@ -2986,10 +3159,11 @@ fun Application.configureStaticFiles() {
     routing {
         route("/api/{...}") {
             get {
-                call.respond(
-                    HttpStatusCode.NotFound,
-                    ApiErrorResponse(
-                        ApiError(ErrorCode.NOT_FOUND, "エンドポイントが見つかりません: ${call.request.path()}"),
+                call.respondProblem(
+                    ProblemDetails.of(
+                        status = HttpStatusCode.NotFound,
+                        detail = "エンドポイントが見つかりません",
+                        instance = call.request.path(),
                     ),
                 )
             }
@@ -3389,10 +3563,11 @@ docker compose up -d                       # Garage v2.3.0
 - Create: `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/App.kt`
 
 **Interfaces:**
-- Consumes: `Route`（Task 12）, `ApiError` / `ErrorCode`（Task 1）
+- Consumes: `Route`（Task 12）, `ProblemDetails` / `of()`（Task 1）
 - Produces:
   - `val AppJson: Json`
-  - `sealed interface ApiResult<out T>` — `Success<T>(value: T)` / `Failure(error: ApiError)` / `Unauthorized`
+  - `sealed interface ApiResult<out T>` — `Success<T>(value: T)` / `Failure(problem: ProblemDetails)` / `Unauthorized`
+  - `val ProblemDetails.displayMessage: String` — `detail` があればそれ、無ければ `title`
   - `class ApiClient(tokenProvider: () -> String?)` と `suspend fun getText(path: String): ApiResult<String>` / `suspend fun postEmpty(path: String): ApiResult<Unit>`
   - `suspend fun <T> ApiClient.getJson(path: String, deserializer: DeserializationStrategy<T>): ApiResult<T>`
   - `@Composable fun rememberRouter(): RouterState` と `class RouterState { val current: Route; fun navigate(route: Route); fun replace(route: Route) }`
@@ -3548,12 +3723,12 @@ import io.ktor.client.request.post
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.Json
-import net.brightroom.garage.shared.api.ApiError
-import net.brightroom.garage.shared.api.ApiErrorResponse
-import net.brightroom.garage.shared.api.ErrorCode
+import net.brightroom.garage.shared.api.ProblemDetails
+import net.brightroom.garage.shared.api.of
 
 val AppJson: Json = Json {
     ignoreUnknownKeys = true
@@ -3568,9 +3743,12 @@ val AppJson: Json = Json {
  */
 sealed interface ApiResult<out T> {
     data class Success<T>(val value: T) : ApiResult<T>
-    data class Failure(val error: ApiError) : ApiResult<Nothing>
+    data class Failure(val problem: ProblemDetails) : ApiResult<Nothing>
     data object Unauthorized : ApiResult<Nothing>
 }
+
+/** 利用者に見せる文言。RFC 9457 の `detail` は省略されうるので `title` に落とす。 */
+val ProblemDetails.displayMessage: String get() = detail ?: title
 
 /**
  * @param tokenProvider 現在のセッションのトークンを返す。未ログインなら null。
@@ -3586,7 +3764,7 @@ class ApiClient(private val tokenProvider: () -> String?) {
             http.get(path) { authorize() }
         }.fold(
             onSuccess = { it.toResult { body -> body } },
-            onFailure = { ApiResult.Failure(networkError(it)) },
+            onFailure = { ApiResult.Failure(networkProblem(it)) },
         )
 
     suspend fun postEmpty(path: String): ApiResult<Unit> =
@@ -3594,7 +3772,7 @@ class ApiClient(private val tokenProvider: () -> String?) {
             http.post(path) { authorize() }
         }.fold(
             onSuccess = { it.toResult { } },
-            onFailure = { ApiResult.Failure(networkError(it)) },
+            onFailure = { ApiResult.Failure(networkProblem(it)) },
         )
 
     private fun io.ktor.client.request.HttpRequestBuilder.authorize() {
@@ -3605,18 +3783,24 @@ class ApiClient(private val tokenProvider: () -> String?) {
         val body = bodyAsText()
 
         return when {
-            status.value == 401 -> ApiResult.Unauthorized
+            status == HttpStatusCode.Unauthorized -> ApiResult.Unauthorized
             status.isSuccess() -> ApiResult.Success(transform(body))
-            else -> ApiResult.Failure(parseError(body))
+            else -> ApiResult.Failure(parseProblem(body, status))
         }
     }
 
-    private fun parseError(body: String): ApiError =
-        runCatching { AppJson.decodeFromString<ApiErrorResponse>(body).error }
-            .getOrElse { ApiError(ErrorCode.INTERNAL, "サーバーからの応答を解釈できませんでした") }
+    /** サーバーは RFC 9457 の problem details を返す。壊れていた場合だけ自前で組み立てる。 */
+    private fun parseProblem(body: String, status: HttpStatusCode): ProblemDetails =
+        runCatching { AppJson.decodeFromString<ProblemDetails>(body) }
+            .getOrElse {
+                ProblemDetails.of(status = status, detail = "サーバーからの応答を解釈できませんでした")
+            }
 
-    private fun networkError(cause: Throwable): ApiError =
-        ApiError(ErrorCode.INTERNAL, "サーバーに接続できませんでした: ${cause.message ?: "原因不明"}")
+    private fun networkProblem(cause: Throwable): ProblemDetails =
+        ProblemDetails.of(
+            status = HttpStatusCode.ServiceUnavailable,
+            detail = "サーバーに接続できませんでした: ${cause.message ?: "原因不明"}",
+        )
 }
 
 /** 本文を [deserializer] でデコードして返す。 */
@@ -3627,7 +3811,12 @@ suspend fun <T> ApiClient.getJson(
     is ApiResult.Success ->
         runCatching { ApiResult.Success(AppJson.decodeFromString(deserializer, raw.value)) }
             .getOrElse {
-                ApiResult.Failure(ApiError(ErrorCode.INTERNAL, "サーバーからの応答を解釈できませんでした"))
+                ApiResult.Failure(
+                    ProblemDetails.of(
+                        status = HttpStatusCode.InternalServerError,
+                        detail = "サーバーからの応答を解釈できませんでした",
+                    ),
+                )
             }
 
     is ApiResult.Failure -> raw
@@ -3778,7 +3967,7 @@ git commit -m "feat(web): 骨格・API クライアント・Router を追加"
 **Interfaces:**
 - Consumes: `ApiClient` / `ApiResult` / `getJson`（Task 14）, `RouterState`（Task 14）, `SessionInfo`（Task 4）, `IdleTracker` / `IdleState`（Task 13）
 - Produces:
-  - `class SessionState` — `token: String?`, `info: SessionInfo?`, `api: ApiClient`, `suspend fun signIn(candidate: String): ApiError?`, `suspend fun restore(): Boolean`, `suspend fun signOut()`, `fun recordActivity()`, `fun idleState(): IdleState`, `fun idleRemainingSeconds(): Long`
+  - `class SessionState` — `token: String?`, `info: SessionInfo?`, `api: ApiClient`, `suspend fun signIn(candidate: String): ProblemDetails?`, `suspend fun restore(): Boolean`, `suspend fun signOut()`, `fun invalidate()`, `fun recordActivity()`, `fun idleState(): IdleState`, `fun idleRemainingSeconds(): Long`
   - `val LocalSession: ProvidableCompositionLocal<SessionState>`
   - `@Composable fun LoginScreen(onSignedIn: () -> Unit)`
 
@@ -3795,10 +3984,11 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import io.ktor.http.HttpStatusCode
 import kotlinx.browser.window
 import kotlinx.datetime.Clock
-import net.brightroom.garage.shared.api.ApiError
-import net.brightroom.garage.shared.api.ErrorCode
+import net.brightroom.garage.shared.api.ProblemDetails
+import net.brightroom.garage.shared.api.of
 import net.brightroom.garage.shared.api.SessionInfo
 import net.brightroom.garage.shared.session.IdleState
 import net.brightroom.garage.shared.session.IdleTracker
@@ -3835,7 +4025,7 @@ class SessionState {
     }
 
     /** 成功したら null、失敗したらその理由を返す。 */
-    suspend fun signIn(candidate: String): ApiError? {
+    suspend fun signIn(candidate: String): ProblemDetails? {
         token = candidate
 
         return when (val result = api.getJson("/api/session", SessionInfo.serializer())) {
@@ -3848,14 +4038,14 @@ class SessionState {
 
             is ApiResult.Failure -> {
                 clear()
-                result.error
+                result.problem
             }
 
             ApiResult.Unauthorized -> {
                 clear()
-                ApiError(
-                    ErrorCode.UNAUTHORIZED,
-                    "トークンが受け付けられませんでした。" +
+                ProblemDetails.of(
+                    status = HttpStatusCode.Unauthorized,
+                    detail = "トークンが受け付けられませんでした。" +
                         "`garage admin-token create` で発行したトークンを使用してください。",
                 )
             }
@@ -3937,6 +4127,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import net.brightroom.garage.web.api.displayMessage
 import net.brightroom.garage.web.session.LocalSession
 
 /**
@@ -3966,7 +4157,7 @@ fun LoginScreen(onSignedIn: () -> Unit) {
             if (failure == null) {
                 onSignedIn()
             } else {
-                error = failure.message
+                error = failure.displayMessage
             }
         }
     }
@@ -4636,6 +4827,7 @@ import net.brightroom.garage.web.components.DeniedView
 import net.brightroom.garage.web.components.ErrorView
 import net.brightroom.garage.web.components.LoadingView
 import net.brightroom.garage.web.components.formatBytes
+import net.brightroom.garage.web.api.displayMessage
 import net.brightroom.garage.web.session.LocalSession
 
 private const val POLL_INTERVAL_MILLIS = 10_000L
@@ -4658,7 +4850,7 @@ fun OverviewScreen() {
                 secondsSinceUpdate = 0
             }
 
-            is ApiResult.Failure -> error = result.error.message
+            is ApiResult.Failure -> error = result.problem.displayMessage
             // トークンが失効した。ログイン画面に戻す
             ApiResult.Unauthorized -> session.invalidate()
         }
@@ -5115,20 +5307,28 @@ test.describe("Navigation", () => {
     await expect(page.getByText("概況")).toBeVisible();
   });
 
-  test("returns a JSON error for unknown api paths", async ({ request }) => {
+  test("returns an RFC 9457 problem for unknown api paths", async ({ request }) => {
     const response = await request.get("/api/does-not-exist");
 
     expect(response.status()).toBe(404);
+    expect(response.headers()["content-type"]).toContain("application/problem+json");
+
     const body = await response.json();
-    expect(body.error.code).toBe("NOT_FOUND");
+    expect(body.status).toBe(404);
+    expect(body.title).toBe("Not Found");
+    // type を省略しているため about:blank とみなされる
+    expect(body.type).toBeUndefined();
   });
 
   test("rejects api access without a token", async ({ request }) => {
     const response = await request.get("/api/overview");
 
     expect(response.status()).toBe(401);
+    expect(response.headers()["content-type"]).toContain("application/problem+json");
+
     const body = await response.json();
-    expect(body.error.code).toBe("UNAUTHORIZED");
+    expect(body.status).toBe(401);
+    expect(body.title).toBe("Unauthorized");
   });
 });
 ```
@@ -5250,7 +5450,7 @@ git commit -m "test(e2e): ログイン・ナビゲーション・概況のテス
 - [ ] `docker compose up -d` と `./gradlew :server:run` の状態で e2e がすべて通る
 - [ ] ログイン → 概況表示 → リロードで維持 → ログアウト → ログイン画面、が手動でも確認できている
 - [ ] `/nope` へ直接アクセスしてもアプリが起動する（SPA フォールバック）
-- [ ] `/api/overview` にトークン無しでアクセスすると JSON の 401 が返る
+- [ ] `/api/overview` にトークン無しでアクセスすると、`application/problem+json` の 401 が返る（`{"title":"Unauthorized","status":401,…}`、ラッパー無し、`type` 無し）
 - [ ] サーバーのログにトークンが出ていない（`./gradlew :server:run` の出力を目視でも確認する）
 - [ ] Task 0 Step 5 で確認した master token の挙動が、コミットメッセージに記録されている
 

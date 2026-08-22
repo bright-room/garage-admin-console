@@ -237,13 +237,22 @@ POST   /api/blocks/purge                     PurgeBlocks
 
 ### 7.1 エラーの正規化
 
-全エラーを 1 形式に統一し、StatusPages で一元処理する。HTTP ステータスは Garage のものを踏襲する。
+全エラーを **RFC 9457（Problem Details for HTTP APIs）** に準拠した 1 形式に統一し、StatusPages で一元処理する。HTTP ステータスは Garage のものを踏襲する。Content-Type は `application/problem+json` とする。
 
 ```json
-{ "error": { "code": "FORBIDDEN", "message": "...", "operation": "GetKeyInfo" } }
+{
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "insufficient scope",
+  "instance": "/api/overview",
+  "operation": "GetKeyInfo"
+}
 ```
 
-`code` は `UNAUTHORIZED` / `FORBIDDEN` / `NOT_FOUND` / `BAD_REQUEST` / `GARAGE_ERROR` / `INTERNAL` を用いる。
+- **ラッパーを被せない。** RFC 9457 の problem details object はレスポンスのトップレベルに置く
+- **`type` は省略する。** RFC 9457 は省略時を `about:blank` とみなす。`about:blank` の場合 `title` は「その HTTP ステータスの推奨理由句であるべき」と定められているため、`title` には Ktor の `HttpStatusCode.description` をそのまま使う。コンソール固有の問題型を定義する必要が生じた時点で `type` に URI を入れる
+- **独自のエラーコード enum は定義しない。** 分類は `status` が担う。Kotlin 側の型には Ktor の `HttpStatusCode` を使い、JSON では RFC 9457 の定めどおり数値に直列化する（そのためのカスタム serializer を `:shared` に置き、`:shared` に `io.ktor:ktor-http` を追加する）
+- `operation` は RFC 9457 の拡張メンバーで、原因となった Garage の operation 名を運ぶ。仕様どおり、未知の拡張メンバーは無視されてよい
 
 ### 7.2 `/api/overview`
 
