@@ -34,6 +34,7 @@ import net.brightroom.garage.shared.api.NodeSummary
 import net.brightroom.garage.shared.api.Overview
 import net.brightroom.garage.shared.api.Section
 import net.brightroom.garage.shared.api.alerts
+import net.brightroom.garage.shared.model.garage.ClusterHealthStatus
 import net.brightroom.garage.web.api.ApiResult
 import net.brightroom.garage.web.api.displayMessage
 import net.brightroom.garage.web.api.getJson
@@ -44,6 +45,18 @@ import net.brightroom.garage.web.components.formatBytes
 import net.brightroom.garage.web.session.LocalSession
 
 private const val POLL_INTERVAL_MILLIS = 10_000L
+
+/**
+ * 画面に出す健全性の表記。
+ *
+ * Garage CLI や API と同じ語をそのまま見せる。運用者が突き合わせやすい。
+ */
+private val ClusterHealthStatus.label: String
+    get() = when (this) {
+        ClusterHealthStatus.HEALTHY -> "healthy"
+        ClusterHealthStatus.DEGRADED -> "degraded"
+        ClusterHealthStatus.UNAVAILABLE -> "unavailable"
+    }
 
 /**
  * タブが隠れているか。
@@ -186,7 +199,7 @@ private fun KeyFigures(overview: Overview) {
         FigureCard("状態") {
             when (val health = overview.health) {
                 is Section.Loaded -> Column {
-                    Text(health.data.status, style = MaterialTheme.typography.headlineMedium)
+                    Text(health.data.status.label, style = MaterialTheme.typography.headlineMedium)
                     Text(
                         "quorum ${health.data.partitionsQuorum}/${health.data.partitions}",
                         style = MaterialTheme.typography.bodySmall,

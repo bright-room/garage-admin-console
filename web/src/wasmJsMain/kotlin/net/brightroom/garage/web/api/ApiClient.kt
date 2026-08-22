@@ -2,6 +2,7 @@ package net.brightroom.garage.web.api
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.js.Js
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -13,7 +14,6 @@ import io.ktor.http.isSuccess
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.Json
 import net.brightroom.garage.shared.api.ProblemDetails
-import net.brightroom.garage.shared.api.of
 
 val AppJson: Json = Json {
     ignoreUnknownKeys = true
@@ -24,7 +24,7 @@ val AppJson: Json = Json {
  * `/api` の呼び出し結果。
  *
  * 401 は「トークンが無効になった」を意味し、画面をログインへ戻す必要があるため
- * 通常の失敗と区別する。
+ * 通常の失敗と区別する。判定にはレスポンスのステータスを使う。
  */
 sealed interface ApiResult<out T> {
     data class Success<T>(val value: T) : ApiResult<T>
@@ -60,7 +60,7 @@ class ApiClient(private val tokenProvider: () -> String?) {
             onFailure = { ApiResult.Failure(networkProblem(it)) },
         )
 
-    private fun io.ktor.client.request.HttpRequestBuilder.authorize() {
+    private fun HttpRequestBuilder.authorize() {
         tokenProvider()?.let { header(HttpHeaders.Authorization, "Bearer $it") }
     }
 
@@ -77,16 +77,22 @@ class ApiClient(private val tokenProvider: () -> String?) {
     /** サーバーは RFC 9457 の problem details を返す。壊れていた場合だけ自前で組み立てる。 */
     private fun parseProblem(body: String, status: HttpStatusCode): ProblemDetails =
         runCatching { AppJson.decodeFromString<ProblemDetails>(body) }
-            .getOrElse {
-                ProblemDetails.of(status = status, detail = "サーバーからの応答を解釈できませんでした")
-            }
+            .getOrElse { problemOf(status, "サーバーからの応答を解釈できませんでした") }
 
     private fun networkProblem(cause: Throwable): ProblemDetails =
-        ProblemDetails.of(
+        problemOf(
             status = HttpStatusCode.ServiceUnavailable,
             detail = "サーバーに接続できませんでした: ${cause.message ?: "原因不明"}",
         )
 }
+
+/**
+ * サーバーからの応答が使えないときに、クライアント側で組み立てる problem details。
+ *
+ * `type` は省略するため、`title` にはその status の推奨理由句を使う。
+ */
+private fun problemOf(status: HttpStatusCode, detail: String): ProblemDetails =
+    ProblemDetails(title = status.description, status = status.value, detail = detail)
 
 /** 本文を [deserializer] でデコードして返す。 */
 suspend fun <T> ApiClient.getJson(
@@ -97,7 +103,7 @@ suspend fun <T> ApiClient.getJson(
         runCatching { ApiResult.Success(AppJson.decodeFromString(deserializer, raw.value)) }
             .getOrElse {
                 ApiResult.Failure(
-                    ProblemDetails.of(
+                    problemOf(
                         status = HttpStatusCode.InternalServerError,
                         detail = "サーバーからの応答を解釈できませんでした",
                     ),

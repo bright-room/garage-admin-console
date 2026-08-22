@@ -8,8 +8,7 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.browser.window
 import kotlin.time.Clock
 import net.brightroom.garage.shared.api.ProblemDetails
-import net.brightroom.garage.shared.api.of
-import net.brightroom.garage.shared.api.SessionInfo
+import net.brightroom.garage.shared.api.Session
 import net.brightroom.garage.shared.session.IdleState
 import net.brightroom.garage.shared.session.IdleTracker
 import net.brightroom.garage.web.api.ApiClient
@@ -29,7 +28,7 @@ class SessionState {
     var token: String? by mutableStateOf(null)
         private set
 
-    var info: SessionInfo? by mutableStateOf(null)
+    var info: Session? by mutableStateOf(null)
         private set
 
     val api: ApiClient = ApiClient { token }
@@ -48,7 +47,7 @@ class SessionState {
     suspend fun signIn(candidate: String): ProblemDetails? {
         token = candidate
 
-        return when (val result = api.getJson("/api/session", SessionInfo.serializer())) {
+        return when (val result = api.getJson("/api/session", Session.serializer())) {
             is ApiResult.Success -> {
                 info = result.value
                 storeToken(candidate)
@@ -65,8 +64,9 @@ class SessionState {
                 clear()
                 // Garage v2.3.0 は master token でも GetCurrentAdminTokenInfo を
                 // 受け付けるため、トークンの種類ではなく値そのものを疑う案内にする。
-                ProblemDetails.of(
-                    status = HttpStatusCode.Unauthorized,
+                ProblemDetails(
+                    title = HttpStatusCode.Unauthorized.description,
+                    status = HttpStatusCode.Unauthorized.value,
                     detail = "トークンが受け付けられませんでした。値を確認してください。",
                 )
             }
