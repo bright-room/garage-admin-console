@@ -50,6 +50,6 @@ class StaticFilesTest {
 
         assertEquals(HttpStatusCode.NotFound, response.status)
         val problem: ProblemDetails = GarageJson.decodeFromString(response.bodyAsText())
-        assertEquals(HttpStatusCode.NotFound, problem.status)
+        assertEquals(HttpStatusCode.NotFound.value, problem.status)
     }
 }

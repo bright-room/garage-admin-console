@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.runTest
 import net.brightroom.garage.server.garage.GarageAdminClient
 import net.brightroom.garage.server.garage.GarageException
 import net.brightroom.garage.shared.api.Section
+import net.brightroom.garage.shared.model.garage.ClusterHealthStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -67,7 +68,7 @@ class OverviewServiceTest {
     fun loadsEverySectionWhenAllOperationsSucceed() = runTest {
         val overview = serviceOf(allOk).build("tok")
 
-        assertEquals("healthy", overview.health.dataOrNull()?.status)
+        assertEquals(ClusterHealthStatus.HEALTHY, overview.health.dataOrNull()?.status)
         assertEquals(1, overview.nodes.dataOrNull()?.size)
         assertEquals("node-a", overview.nodes.dataOrNull()?.first()?.hostname)
         assertEquals("dc1", overview.nodes.dataOrNull()?.first()?.zone)
@@ -86,7 +87,7 @@ class OverviewServiceTest {
 
         val denied = assertIs<Section.Denied>(overview.blockErrors)
         assertEquals("ListBlockErrors", denied.operation)
-        assertEquals("healthy", overview.health.dataOrNull()?.status)
+        assertEquals(ClusterHealthStatus.HEALTHY, overview.health.dataOrNull()?.status)
         assertEquals(2, overview.storage.dataOrNull()?.buckets)
     }
 
@@ -108,7 +109,7 @@ class OverviewServiceTest {
 
         val failed = assertIs<Section.Failed>(overview.layout)
         assertEquals("boom", failed.message)
-        assertEquals("healthy", overview.health.dataOrNull()?.status)
+        assertEquals(ClusterHealthStatus.HEALTHY, overview.health.dataOrNull()?.status)
     }
 
     @Test

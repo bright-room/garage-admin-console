@@ -1,8 +1,5 @@
-ktor:
-  application:
-    modules:
-      - net.brightroom.garage.server.ApplicationKt.module
-
+# テストは各テストが必要なプラグインだけを明示的に構成するため、
+# ktor.application.modules は列挙しない。ここに置くのは設定値だけ。
 garage:
   admin:
     endpoint: http://garage.test:3903

@@ -8,8 +8,8 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import net.brightroom.garage.server.garage.GarageAdminClient
 import net.brightroom.garage.server.garage.garageBody
-import net.brightroom.garage.shared.api.toSessionInfo
-import net.brightroom.garage.shared.model.garage.AdminTokenInfo
+import net.brightroom.garage.shared.api.toSession
+import net.brightroom.garage.shared.model.garage.AdminToken
 
 private const val CURRENT_TOKEN_INFO = "GetCurrentAdminTokenInfo"
 
@@ -18,10 +18,10 @@ fun Route.sessionRoutes(client: GarageAdminClient) {
 
         get {
             val token = call.adminToken()
-            val info: AdminTokenInfo = client.get(token, CURRENT_TOKEN_INFO)
+            val info: AdminToken = client.get(token, CURRENT_TOKEN_INFO)
                 .garageBody(CURRENT_TOKEN_INFO)
 
-            call.respond(info.toSessionInfo())
+            call.respond(info.toSession())
         }
 
         post("/logout") {

@@ -8,6 +8,7 @@ import io.ktor.http.headersOf
 import io.ktor.http.ContentType
 import kotlinx.coroutines.test.runTest
 import net.brightroom.garage.shared.model.garage.ClusterHealth
+import net.brightroom.garage.shared.model.garage.ClusterHealthStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -40,7 +41,7 @@ class GarageAdminClientTest {
 
         assertEquals("Bearer tok-abc", capturedAuth)
         assertEquals("http://garage.test:3903/v2/GetClusterHealth", capturedUrl)
-        assertEquals("healthy", health.status)
+        assertEquals(ClusterHealthStatus.HEALTHY, health.status)
     }
 
     @Test

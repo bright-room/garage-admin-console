@@ -14,7 +14,7 @@ import io.ktor.server.testing.testApplication
 import net.brightroom.garage.server.garageApp
 import net.brightroom.garage.server.plugins.GarageJson
 import net.brightroom.garage.shared.api.ProblemDetails
-import net.brightroom.garage.shared.api.SessionInfo
+import net.brightroom.garage.shared.api.Session
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -23,7 +23,7 @@ class SessionRoutesTest {
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
 
     @Test
-    fun returnsSessionInfoForValidToken() = testApplication {
+    fun returnsSessionForValidToken() = testApplication {
         var forwardedAuth: String? = null
         garageApp(
             MockEngine { request ->
@@ -41,7 +41,7 @@ class SessionRoutesTest {
         }
 
         assertEquals(HttpStatusCode.OK, response.status)
-        val session: SessionInfo = GarageJson.decodeFromString(response.bodyAsText())
+        val session: Session = GarageJson.decodeFromString(response.bodyAsText())
         assertEquals("alice", session.name)
         assertEquals(listOf("ListBuckets"), session.scope)
         assertEquals("Bearer tok-abc", forwardedAuth)
@@ -55,7 +55,7 @@ class SessionRoutesTest {
 
         assertEquals(HttpStatusCode.Unauthorized, response.status)
         val problem: ProblemDetails = GarageJson.decodeFromString(response.bodyAsText())
-        assertEquals(HttpStatusCode.Unauthorized, problem.status)
+        assertEquals(HttpStatusCode.Unauthorized.value, problem.status)
     }
 
     @Test
@@ -79,7 +79,7 @@ class SessionRoutesTest {
 
         assertEquals(HttpStatusCode.Unauthorized, response.status)
         val problem: ProblemDetails = GarageJson.decodeFromString(response.bodyAsText())
-        assertEquals(HttpStatusCode.Unauthorized, problem.status)
+        assertEquals(HttpStatusCode.Unauthorized.value, problem.status)
         assertEquals("GetCurrentAdminTokenInfo", problem.operation)
         assertEquals("invalid token", problem.detail)
     }

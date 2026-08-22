@@ -39,7 +39,7 @@ class StatusPagesTest {
 
         assertEquals(HttpStatusCode.Forbidden, response.status)
         val problem = problemOf(response.bodyAsText())
-        assertEquals(HttpStatusCode.Forbidden, problem.status)
+        assertEquals(HttpStatusCode.Forbidden.value, problem.status)
         assertEquals("Forbidden", problem.title)
         assertEquals("insufficient scope", problem.detail)
         assertEquals("GetKeyInfo", problem.operation)
@@ -75,7 +75,7 @@ class StatusPagesTest {
         val response = client.get("/boom")
 
         assertEquals(HttpStatusCode.Unauthorized, response.status)
-        assertEquals(HttpStatusCode.Unauthorized, problemOf(response.bodyAsText()).status)
+        assertEquals(HttpStatusCode.Unauthorized.value, problemOf(response.bodyAsText()).status)
     }
 
     @Test
@@ -92,7 +92,7 @@ class StatusPagesTest {
 
         assertEquals(HttpStatusCode.InternalServerError, response.status)
         val problem = problemOf(response.bodyAsText())
-        assertEquals(HttpStatusCode.InternalServerError, problem.status)
+        assertEquals(HttpStatusCode.InternalServerError.value, problem.status)
         assertEquals("Internal Server Error", problem.title)
         // 内部エラーの詳細は外に出さない
         assertEquals(null, problem.operation)
@@ -111,7 +111,7 @@ class StatusPagesTest {
         val response = client.get("/api/does-not-exist")
 
         assertEquals(HttpStatusCode.NotFound, response.status)
-        assertEquals(HttpStatusCode.NotFound, problemOf(response.bodyAsText()).status)
+        assertEquals(HttpStatusCode.NotFound.value, problemOf(response.bodyAsText()).status)
     }
 
     @Test
