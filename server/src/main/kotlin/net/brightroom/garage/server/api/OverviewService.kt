@@ -9,6 +9,7 @@ import net.brightroom.garage.server.garage.GarageAdminClient
 import net.brightroom.garage.server.garage.GarageException
 import net.brightroom.garage.server.garage.garageBody
 import net.brightroom.garage.server.garage.garageBodyWith
+import net.brightroom.garage.server.garage.requireValidToken
 import net.brightroom.garage.shared.api.LayoutSummary
 import net.brightroom.garage.shared.api.Overview
 import net.brightroom.garage.shared.api.Section
@@ -29,6 +30,12 @@ import net.brightroom.garage.shared.model.garage.MultiResponse
 class OverviewService(private val client: GarageAdminClient) {
 
     suspend fun build(token: String): Overview = coroutineScope {
+        // トークンが無効なら概況に意味がないため、全体を 401 で失敗させて
+        // web をログイン画面へ戻す。Garage は無効なトークンにも 403 を返し
+        // scope 不足と区別できないため、常に許可される operation で確かめる。
+        // 失敗するとこのスコープ全体が中断され、他の取得も打ち切られる。
+        val tokenCheck = async { client.requireValidToken(token) }
+
         val health = async {
             section {
                 client.get(token, HEALTH).garageBody<ClusterHealth>(HEALTH)
@@ -72,6 +79,8 @@ class OverviewService(private val client: GarageAdminClient) {
                 response.success.values.sumOf { it.size }
             }
         }
+
+        tokenCheck.await()
 
         Overview(
             health = health.await(),

@@ -85,6 +85,32 @@ class SessionRoutesTest {
     }
 
     @Test
+    fun normalisesGarageForbiddenIntoUnauthorized() = testApplication {
+        // Garage v2.3.0 は無効な bearer token に 401 ではなく 403 を返す。
+        // GetCurrentAdminTokenInfo は scope 限定のトークンでも許可されるため、
+        // この 403 は「トークンが無効」を意味する。401 に正規化して
+        // web がログイン画面へ戻せるようにする。
+        garageApp(
+            MockEngine {
+                respond(
+                    """{"code":"AccessDenied","message":"Forbidden: Invalid bearer token"}""",
+                    HttpStatusCode.Forbidden,
+                    jsonHeaders,
+                )
+            },
+        )
+
+        val response = client.get("/api/session") {
+            header(HttpHeaders.Authorization, "Bearer wrong")
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        val problem: ProblemDetails = GarageJson.decodeFromString(response.bodyAsText())
+        assertEquals(HttpStatusCode.Unauthorized.value, problem.status)
+        assertEquals("GetCurrentAdminTokenInfo", problem.operation)
+    }
+
+    @Test
     fun logoutSucceedsWithoutCallingGarage() = testApplication {
         var garageCalled = false
         garageApp(

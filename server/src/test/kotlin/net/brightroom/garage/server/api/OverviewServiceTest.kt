@@ -56,6 +56,8 @@ class OverviewServiceTest {
         OverviewService(GarageAdminClient("http://garage.test:3903", engineOf(responses)))
 
     private val allOk = mapOf(
+        "GetCurrentAdminTokenInfo" to
+            ("""{"name":"dev","scope":["*"],"expired":false}""" to HttpStatusCode.OK),
         "GetClusterHealth" to (healthBody to HttpStatusCode.OK),
         "GetClusterStatus" to (statusBody to HttpStatusCode.OK),
         "GetClusterLayout" to (layoutBody to HttpStatusCode.OK),
@@ -121,5 +123,19 @@ class OverviewServiceTest {
         }
 
         assertEquals(HttpStatusCode.Unauthorized, failure.status)
+    }
+
+    @Test
+    fun invalidTokenFailsTheWholeRequestAsUnauthorized() = runTest {
+        // Garage v2.3.0 は無効なトークンにも 403 を返す。セクション単位の
+        // Denied に落とさず、全体を 401 にしてログイン画面へ戻せること。
+        val failure = assertFailsWith<GarageException> {
+            serviceOf(
+                allOk + ("GetCurrentAdminTokenInfo" to ("forbidden" to HttpStatusCode.Forbidden)),
+            ).build("tok")
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, failure.status)
+        assertEquals("GetCurrentAdminTokenInfo", failure.operation)
     }
 }
