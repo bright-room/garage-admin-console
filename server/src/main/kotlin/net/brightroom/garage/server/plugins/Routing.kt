@@ -5,6 +5,7 @@ import io.ktor.server.plugins.di.dependencies
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import net.brightroom.garage.server.api.OverviewService
+import net.brightroom.garage.server.api.bucketRoutes
 import net.brightroom.garage.server.api.overviewRoutes
 import net.brightroom.garage.server.api.sessionRoutes
 import net.brightroom.garage.server.garage.GarageAdminClient
@@ -17,6 +18,7 @@ fun Application.configureRouting() {
         route("/api") {
             sessionRoutes(client)
             overviewRoutes(overviewService)
+            bucketRoutes(client)
         }
     }
 }

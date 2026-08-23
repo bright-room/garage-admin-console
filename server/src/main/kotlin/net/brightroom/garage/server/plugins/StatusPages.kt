@@ -4,9 +4,11 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.application.log
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.NotFoundException
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.path
+import net.brightroom.garage.server.api.InvalidRequestException
 import net.brightroom.garage.server.api.MissingTokenException
 import net.brightroom.garage.server.api.respondProblem
 import net.brightroom.garage.server.garage.GarageException
@@ -33,6 +35,18 @@ fun Application.configureStatusPages() {
 
         exception<NotFoundException> { call, cause ->
             call.respondProblem(status = HttpStatusCode.NotFound, detail = cause.message)
+        }
+
+        exception<InvalidRequestException> { call, cause ->
+            call.respondProblem(status = HttpStatusCode.BadRequest, detail = cause.message)
+        }
+
+        // 本文のデシリアライズ失敗など、Ktor が投げる 400。内部のメッセージは外に出さない
+        exception<BadRequestException> { call, _ ->
+            call.respondProblem(
+                status = HttpStatusCode.BadRequest,
+                detail = "リクエストの内容を解釈できませんでした",
+            )
         }
 
         exception<Throwable> { call, cause ->
