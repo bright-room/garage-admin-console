@@ -12,9 +12,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 温まった状態で 3 分半。キャッシュが失効すると依存 350MB と Gradle 本体
-    # 149MB の取得が加わるため、コールドを見込んで余裕を残す。
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -23,9 +21,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # lint・テスト・fat JAR を一度の Gradle 実行にまとめる。
-      # :server:processResources が :web:wasmJsBrowserDistribution に依存するため、
-      # ジョブを分けると約 95 秒の wasm 本番ビルドが二重に走る。
       - name: Check and Build
         uses: ./.github/actions/gradle-action
         with:
@@ -41,8 +36,6 @@ jobs:
   e2e:
     needs: build
     runs-on: ubuntu-latest
-    # 実測 1 分 10 秒。Garage の起動待ちとブラウザ取得のぶれを見込んでも
-    # 10 分に届かない。ハングを早く落とす。
     timeout-minutes: 10
     permissions:
       contents: read
@@ -98,11 +91,6 @@ jobs:
         with:
           node-version: 24
 
-      # キャッシュは張らない。ブラウザ取得は 9 秒で、復元 5 秒 + 保存 4 秒を
-      # 払うと新規 PR では逆に遅くなる（実測）。依存は 1 つで npm ci も 1 秒。
-      # --with-deps も付けない。chromium の共有ライブラリは ubuntu-latest に
-      # 揃っており、apt-get に 17 秒かかるだけで得るものが無い。
-      # ランナーイメージの変更でブラウザが起動しなくなったら付け直すこと。
       - name: Install E2E dependencies
         working-directory: e2e
         run: |
