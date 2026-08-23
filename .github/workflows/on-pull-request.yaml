@@ -107,17 +107,13 @@ jobs:
         working-directory: e2e
         run: npm ci
 
-      # ブラウザ本体はキャッシュから戻る。OS 側の共有ライブラリはランナーに
-      # 残らないため、キャッシュヒット時も install-deps だけは毎回必要。
+      # --with-deps は付けない。chromium の共有ライブラリは ubuntu-latest に
+      # 揃っており、apt-get に 17 秒かかるだけで得るものが無い。
+      # ランナーイメージの変更でブラウザが起動しなくなったら付け直すこと。
       - name: Install Playwright browser
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: e2e
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright system dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        working-directory: e2e
-        run: npx playwright install-deps chromium
+        run: npx playwright install chromium
 
       - name: Run E2E tests
         working-directory: e2e
