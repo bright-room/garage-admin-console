@@ -5,6 +5,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
@@ -24,7 +25,6 @@ import kotlin.test.assertTrue
 
 class BucketOperationsTest {
 
-    private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
     private val json = Json { ignoreUnknownKeys = true }
 
     private val bucketInfoBody = """
@@ -62,7 +62,9 @@ class BucketOperationsTest {
         val buckets = client.listBuckets("tok")
 
         assertEquals("dev-bucket", buckets.single().displayName)
-        assertTrue(recorder.requests.single().url.encodedPath.endsWith("/v2/ListBuckets"))
+        val request = recorder.requests.single()
+        assertEquals(HttpMethod.Get, request.method)
+        assertTrue(request.url.encodedPath.endsWith("/v2/ListBuckets"))
     }
 
     @Test
@@ -73,7 +75,10 @@ class BucketOperationsTest {
         val info = client.getBucketInfo("tok", "b1")
 
         assertEquals("b1", info.id)
-        assertEquals("b1", recorder.requests.single().url.parameters["id"])
+        val request = recorder.requests.single()
+        assertEquals("b1", request.url.parameters["id"])
+        assertEquals(HttpMethod.Get, request.method)
+        assertTrue(request.url.encodedPath.endsWith("/v2/GetBucketInfo"))
     }
 
     @Test
@@ -85,6 +90,9 @@ class BucketOperationsTest {
 
         val sent = json.decodeFromString<JsonObject>(recorder.body)
         assertEquals("new-bucket", sent["globalAlias"]?.toString()?.trim('"'))
+        val request = recorder.requests.single()
+        assertEquals(HttpMethod.Post, request.method)
+        assertTrue(request.url.encodedPath.endsWith("/v2/CreateBucket"))
     }
 
     @Test
@@ -96,6 +104,9 @@ class BucketOperationsTest {
 
         val sent = json.decodeFromString<JsonObject>(recorder.body)
         assertNull(sent["globalAlias"])
+        val request = recorder.requests.single()
+        assertEquals(HttpMethod.Post, request.method)
+        assertTrue(request.url.encodedPath.endsWith("/v2/CreateBucket"))
     }
 
     @Test
@@ -119,7 +130,10 @@ class BucketOperationsTest {
         assertEquals("[]", sent["corsRules"]?.toString())
         assertNull(sent["lifecycleRules"])
         assertNull(sent["websiteAccess"])
-        assertEquals("b1", recorder.requests.single().url.parameters["id"])
+        val request = recorder.requests.single()
+        assertEquals("b1", request.url.parameters["id"])
+        assertEquals(HttpMethod.Post, request.method)
+        assertTrue(request.url.encodedPath.endsWith("/v2/UpdateBucket"))
     }
 
     @Test
@@ -136,6 +150,9 @@ class BucketOperationsTest {
         )
 
         assertTrue(recorder.body.contains("\"AllowedOrigin\""))
+        val request = recorder.requests.single()
+        assertEquals(HttpMethod.Post, request.method)
+        assertTrue(request.url.encodedPath.endsWith("/v2/UpdateBucket"))
     }
 
     @Test
@@ -146,12 +163,16 @@ class BucketOperationsTest {
         val added = json.decodeFromString<JsonObject>(add.body)
         assertEquals("b1", added["bucketId"]?.toString()?.trim('"'))
         assertEquals("alt", added["globalAlias"]?.toString()?.trim('"'))
-        assertTrue(add.requests.single().url.encodedPath.endsWith("/v2/AddBucketAlias"))
+        val addRequest = add.requests.single()
+        assertEquals(HttpMethod.Post, addRequest.method)
+        assertTrue(addRequest.url.encodedPath.endsWith("/v2/AddBucketAlias"))
 
         val remove = Recorder()
         remove.client(bucketInfoBody).removeBucketAlias("tok", "b1", "alt")
 
-        assertTrue(remove.requests.single().url.encodedPath.endsWith("/v2/RemoveBucketAlias"))
+        val removeRequest = remove.requests.single()
+        assertEquals(HttpMethod.Post, removeRequest.method)
+        assertTrue(removeRequest.url.encodedPath.endsWith("/v2/RemoveBucketAlias"))
     }
 
     @Test
@@ -167,7 +188,9 @@ class BucketOperationsTest {
         val sent = json.decodeFromString<JsonObject>(allow.body)
         assertEquals("GK01", sent["accessKeyId"]?.toString()?.trim('"'))
         assertTrue(sent["permissions"].toString().contains("\"read\":true"))
-        assertTrue(allow.requests.single().url.encodedPath.endsWith("/v2/AllowBucketKey"))
+        val allowRequest = allow.requests.single()
+        assertEquals(HttpMethod.Post, allowRequest.method)
+        assertTrue(allowRequest.url.encodedPath.endsWith("/v2/AllowBucketKey"))
 
         val deny = Recorder()
         deny.client(bucketInfoBody).denyBucketKey(
@@ -177,7 +200,9 @@ class BucketOperationsTest {
             BucketKeyPermissions(owner = true, read = true, write = true),
         )
 
-        assertTrue(deny.requests.single().url.encodedPath.endsWith("/v2/DenyBucketKey"))
+        val denyRequest = deny.requests.single()
+        assertEquals(HttpMethod.Post, denyRequest.method)
+        assertTrue(denyRequest.url.encodedPath.endsWith("/v2/DenyBucketKey"))
     }
 
     @Test
@@ -190,6 +215,9 @@ class BucketOperationsTest {
         assertEquals(3, deleted)
         val sent = json.decodeFromString<JsonObject>(recorder.body)
         assertEquals("86400", sent["olderThanSecs"]?.toString())
+        val request = recorder.requests.single()
+        assertEquals(HttpMethod.Post, request.method)
+        assertTrue(request.url.encodedPath.endsWith("/v2/CleanupIncompleteUploads"))
     }
 
     @Test
@@ -208,7 +236,10 @@ class BucketOperationsTest {
 
         assertEquals("a.txt", inspection.key)
         assertEquals(listOf("content-type", "text/plain"), inspection.versions.single().headers.single())
-        assertEquals("a.txt", recorder.requests.single().url.parameters["key"])
+        val request = recorder.requests.single()
+        assertEquals("a.txt", request.url.parameters["key"])
+        assertEquals(HttpMethod.Get, request.method)
+        assertTrue(request.url.encodedPath.endsWith("/v2/InspectObject"))
     }
 
     @Test
@@ -232,5 +263,9 @@ class BucketOperationsTest {
 
         assertEquals(HttpStatusCode.BadRequest, failure.status)
         assertEquals("bucket is not empty", failure.message)
+        val request = recorder.requests.single()
+        assertEquals("b1", request.url.parameters["id"])
+        assertEquals(HttpMethod.Post, request.method)
+        assertTrue(request.url.encodedPath.endsWith("/v2/DeleteBucket"))
     }
 }
