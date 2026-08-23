@@ -44,13 +44,14 @@ fun Route.objectRoutes(client: GarageAdminClient, resolver: S3CredentialResolver
 
         put {
             val token = call.adminToken()
+            val key = call.queryParam("key")
             // Content-Length を先に確かめる。無ければ資格情報の解決すら試みない
             val contentLength = call.request.contentLength() ?: throw MissingContentLengthException()
             val credentials = resolver.resolve(token, call.pathParam("id"))
 
             store.put(
                 credentials = credentials,
-                key = call.queryParam("key"),
+                key = key,
                 contentType = call.request.contentType().toString(),
                 contentLength = contentLength,
                 stream = call.receiveStream(),
@@ -61,9 +62,10 @@ fun Route.objectRoutes(client: GarageAdminClient, resolver: S3CredentialResolver
 
         delete {
             val token = call.adminToken()
+            val key = call.queryParam("key")
             val credentials = resolver.resolve(token, call.pathParam("id"))
 
-            store.delete(credentials, call.queryParam("key"))
+            store.delete(credentials, key)
 
             call.respond(HttpStatusCode.NoContent)
         }

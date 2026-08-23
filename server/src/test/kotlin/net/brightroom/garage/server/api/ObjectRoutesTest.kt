@@ -2,6 +2,7 @@ package net.brightroom.garage.server.api
 
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.put
@@ -73,6 +74,43 @@ class ObjectRoutesTest {
         }
 
         assertEquals(HttpStatusCode.LengthRequired, response.status)
+    }
+
+    @Test
+    fun rejectsUploadWithoutKeyBeforeTouchingGarage() = testApplication {
+        var garageCallCount = 0
+        garageApp(
+            MockEngine {
+                garageCallCount++
+                respond(bucketBody(ownerKey), HttpStatusCode.OK, jsonHeaders)
+            },
+        )
+
+        val response = client.put("/api/buckets/b1/objects") {
+            header(HttpHeaders.Authorization, "Bearer tok")
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        // key が無ければ、資格情報の解決すら試みない（Garage には一度も到達しない）
+        assertEquals(0, garageCallCount)
+    }
+
+    @Test
+    fun rejectsDeleteWithoutKeyBeforeTouchingGarage() = testApplication {
+        var garageCallCount = 0
+        garageApp(
+            MockEngine {
+                garageCallCount++
+                respond(bucketBody(ownerKey), HttpStatusCode.OK, jsonHeaders)
+            },
+        )
+
+        val response = client.delete("/api/buckets/b1/objects") {
+            header(HttpHeaders.Authorization, "Bearer tok")
+        }
+
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        assertEquals(0, garageCallCount)
     }
 
     @Test
