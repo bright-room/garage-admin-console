@@ -7,5 +7,76 @@ GARAGE_S3_ENDPOINT = "http://localhost:3900"
 GARAGE_S3_REGION = "garage"
 GARAGE_S3_PATH_STYLE = "true"
 
-# ログイン用の admin token は `docker compose up` の初期化ログに表示される:
-#   docker logs garage-admin-console-garage-init-1
+[tasks.build]
+description = "fat jar をビルドする（:web の wasm production ビルドを含む）"
+run = "./gradlew :server:buildFatJar"
+
+[tasks.run]
+description = "管理コンソールを http://localhost:8080 で起動する"
+depends = ["build"]
+run = "java -jar server/build/libs/garage-admin-console-all.jar"
+
+[tasks.token]
+description = "ログイン用の admin token を garage-init のログから取り出す"
+# docker の --format は Go テンプレートで、mise が run を tera でレンダリングする際に
+# 衝突する。スクリプト全体を raw に置いてテンプレート展開から外す。
+run = '''
+{% raw %}
+set -eu
+
+container="${GARAGE_INIT_CONTAINER:-}"
+
+if [ -z "$container" ]; then
+  found=$(docker ps -a --filter name=garage-init --format '{{.Names}}')
+  count=$(printf '%s' "$found" | grep -c . || true)
+
+  if [ "$count" -eq 0 ]; then
+    echo "garage-init コンテナが見つかりません。docker compose up で Garage を起動してください。" >&2
+    exit 1
+  fi
+
+  if [ "$count" -gt 1 ]; then
+    echo "garage-init コンテナが複数あります:" >&2
+    echo "$found" | sed 's/^/  /' >&2
+    echo "GARAGE_INIT_CONTAINER で対象を指定してください。" >&2
+    exit 1
+  fi
+
+  container="$found"
+fi
+
+if ! logs=$(docker logs "$container" 2>&1); then
+  echo "$container のログを読めません: $logs" >&2
+  exit 1
+fi
+
+token=$(printf '%s\n' "$logs" | sed -n 's/.*Console login token: //p' | tr -d '\r')
+
+if [ -z "$token" ]; then
+  echo "$container のログに Console login token がありません。" >&2
+  echo "トークンは発行時に一度しか表示されません。docker compose down -v で作り直してください。" >&2
+  exit 1
+fi
+
+printf '%s\n' "$token"
+{% endraw %}
+'''
+
+[tasks.e2e]
+description = "e2e を回す（先に mise run run で管理コンソールを起動しておく）"
+dir = "e2e"
+run = '''
+set -eu
+
+base_url="${BASE_URL:-http://localhost:8080}"
+
+if ! curl -sf -m 5 "$base_url/" > /dev/null; then
+  echo "$base_url に管理コンソールが見つかりません。先に mise run run を実行してください。" >&2
+  exit 1
+fi
+
+npm ci
+npx playwright install chromium
+
+E2E_ADMIN_TOKEN="$(mise run -q token)" BASE_URL="$base_url" npx playwright test
+'''
