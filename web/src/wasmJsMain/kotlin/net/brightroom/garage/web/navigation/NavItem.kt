@@ -7,16 +7,9 @@ import net.brightroom.garage.shared.navigation.Route
  *   scope に含まれない場合はサイドバーで無効表示にする。
  *   これは UI ヒントであり、可否の実体は常に Garage が返す 403 で決まる（spec §6.3）。
  */
-data class NavItem(
-    val route: Route,
-    val label: String,
-    val requiredOperation: String? = null,
-)
+data class NavItem(val route: Route, val label: String, val requiredOperation: String? = null)
 
-data class NavGroup(
-    val title: String?,
-    val items: List<NavItem>,
-)
+data class NavGroup(val title: String?, val items: List<NavItem>)
 
 /**
  * サイドバーの構成。役割でグループ化する（spec §8.2）。

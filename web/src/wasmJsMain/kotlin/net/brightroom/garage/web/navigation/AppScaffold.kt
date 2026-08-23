@@ -33,10 +33,7 @@ import net.brightroom.garage.web.session.LocalSession
 import org.w3c.dom.events.Event
 
 @Composable
-fun AppScaffold(
-    router: RouterState,
-    content: @Composable () -> Unit,
-) {
+fun AppScaffold(router: RouterState, content: @Composable () -> Unit) {
     val session = LocalSession.current
     val scope = rememberCoroutineScope()
     var idleWarning by remember { mutableStateOf(false) }
@@ -59,6 +56,7 @@ fun AppScaffold(
             delay(1_000)
             when (session.idleState()) {
                 IdleState.ACTIVE -> idleWarning = false
+
                 IdleState.WARNING -> {
                     idleWarning = true
                     remainingSeconds = session.idleRemainingSeconds()
@@ -91,11 +89,7 @@ fun AppScaffold(
 }
 
 @Composable
-private fun Header(
-    idleWarning: Boolean,
-    remainingSeconds: Long,
-    onSignOut: () -> Unit,
-) {
+private fun Header(idleWarning: Boolean, remainingSeconds: Long, onSignOut: () -> Unit) {
     val session = LocalSession.current
     val info = session.info
 

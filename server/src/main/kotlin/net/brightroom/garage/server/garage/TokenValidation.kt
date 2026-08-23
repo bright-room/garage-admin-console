@@ -16,16 +16,15 @@ const val CURRENT_TOKEN_INFO: String = "GetCurrentAdminTokenInfo"
  *
  * ここで 401 に正規化することで、クライアントは 401 を見てログイン画面へ戻せる。
  */
-suspend fun GarageAdminClient.requireValidToken(token: String): AdminToken =
-    try {
-        get(token, CURRENT_TOKEN_INFO).garageBody<AdminToken>(CURRENT_TOKEN_INFO)
-    } catch (e: GarageException) {
-        if (e.status == HttpStatusCode.Forbidden) {
-            throw GarageException(
-                status = HttpStatusCode.Unauthorized,
-                operation = CURRENT_TOKEN_INFO,
-                message = e.message,
-            )
-        }
-        throw e
+suspend fun GarageAdminClient.requireValidToken(token: String): AdminToken = try {
+    get(token, CURRENT_TOKEN_INFO).garageBody<AdminToken>(CURRENT_TOKEN_INFO)
+} catch (e: GarageException) {
+    if (e.status == HttpStatusCode.Forbidden) {
+        throw GarageException(
+            status = HttpStatusCode.Unauthorized,
+            operation = CURRENT_TOKEN_INFO,
+            message = e.message,
+        )
     }
+    throw e
+}

@@ -3,10 +3,10 @@ package net.brightroom.garage.server.plugins
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
-import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import net.brightroom.garage.server.api.MissingTokenException
 import net.brightroom.garage.server.garage.GarageException
@@ -16,8 +16,7 @@ import kotlin.test.assertEquals
 
 class StatusPagesTest {
 
-    private fun problemOf(body: String): ProblemDetails =
-        GarageJson.decodeFromString(body)
+    private fun problemOf(body: String): ProblemDetails = GarageJson.decodeFromString(body)
 
     @Test
     fun normalisesForbiddenFromGarage() = testApplication {

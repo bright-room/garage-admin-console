@@ -4,10 +4,7 @@ import kotlinx.serialization.Serializable
 
 /** `GetClusterStatus` のレスポンス。 */
 @Serializable
-data class ClusterStatus(
-    val layoutVersion: Long,
-    val nodes: List<NodeResp>,
-)
+data class ClusterStatus(val layoutVersion: Long, val nodes: List<NodeResp>)
 
 @Serializable
 data class NodeResp(
@@ -33,7 +30,4 @@ data class NodeAssignedRole(
 )
 
 @Serializable
-data class FreeSpace(
-    val available: Long,
-    val total: Long,
-)
+data class FreeSpace(val available: Long, val total: Long)

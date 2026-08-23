@@ -18,10 +18,7 @@ import net.brightroom.garage.shared.navigation.Route
 import net.brightroom.garage.web.session.LocalSession
 
 @Composable
-fun Sidebar(
-    current: Route,
-    onNavigate: (Route) -> Unit,
-) {
+fun Sidebar(current: Route, onNavigate: (Route) -> Unit) {
     val session = LocalSession.current
 
     Column(

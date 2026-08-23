@@ -8,8 +8,5 @@ import io.ktor.http.HttpStatusCode
  * scope 制限による 403 は正常系であり、呼び出し側は [status] で扱いを分ける。
  * Garage が返したステータスをそのまま運ぶ（独自のエラー分類は設けない）。
  */
-class GarageException(
-    val status: HttpStatusCode,
-    val operation: String,
-    override val message: String,
-) : RuntimeException(message)
+class GarageException(val status: HttpStatusCode, val operation: String, override val message: String) :
+    RuntimeException(message)
