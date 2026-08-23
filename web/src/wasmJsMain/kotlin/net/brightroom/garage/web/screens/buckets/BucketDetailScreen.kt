@@ -128,17 +128,17 @@ fun BucketDetailScreen(
 
         AliasSection(
             bucket = current,
-            onAdd = { alias ->
+            onAdd = { alias, clearInput ->
                 scope.launch {
-                    apply(
-                        session.api.sendJson(
-                            HttpMethod.Post,
-                            "/api/buckets/$bucketId/aliases",
-                            AppJson.encodeToString(BucketAliasRequest.serializer(), BucketAliasRequest(alias)),
-                            BucketInfo.serializer(),
-                        ),
-                        success = "別名 $alias を追加しました",
+                    val result = session.api.sendJson(
+                        HttpMethod.Post,
+                        "/api/buckets/$bucketId/aliases",
+                        AppJson.encodeToString(BucketAliasRequest.serializer(), BucketAliasRequest(alias)),
+                        BucketInfo.serializer(),
                     )
+
+                    if (result is ApiResult.Success) clearInput()
+                    apply(result, success = "別名 $alias を追加しました")
                 }
             },
             onRemove = { alias ->
@@ -269,7 +269,7 @@ private fun Overview(bucket: BucketInfo) {
 }
 
 @Composable
-private fun AliasSection(bucket: BucketInfo, onAdd: (String) -> Unit, onRemove: (String) -> Unit) {
+private fun AliasSection(bucket: BucketInfo, onAdd: (String, () -> Unit) -> Unit, onRemove: (String) -> Unit) {
     var newAlias by remember { mutableStateOf("") }
 
     BucketSection("別名") {
@@ -311,10 +311,7 @@ private fun AliasSection(bucket: BucketInfo, onAdd: (String) -> Unit, onRemove: 
             )
             Button(
                 enabled = newAlias.isNotBlank(),
-                onClick = {
-                    onAdd(newAlias)
-                    newAlias = ""
-                },
+                onClick = { onAdd(newAlias) { newAlias = "" } },
             ) {
                 Text("追加")
             }
