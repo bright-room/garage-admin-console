@@ -58,7 +58,7 @@ fun KeyDetailScreen(keyId: String, onOpenBucket: (String) -> Unit, onDeleted: ()
         when (val result = session.api.getJson(path, KeyInfo.serializer())) {
             is ApiResult.Success -> {
                 key = result.value
-                if (showSecret) secret = result.value.secretAccessKey
+                secret = if (showSecret) result.value.secretAccessKey else null
                 failure = null
             }
 
