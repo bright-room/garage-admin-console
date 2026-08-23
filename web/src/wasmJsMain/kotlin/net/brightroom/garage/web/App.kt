@@ -81,9 +81,9 @@ fun App() {
 private fun AuthenticatedApp(router: RouterState) {
     AppScaffold(router) {
         when (val route = router.current) {
-            Route.Overview -> OverviewScreen()
+            Route.Overview -> OverviewScreen(onNavigate = router::navigate)
 
-            Route.Login -> OverviewScreen()
+            Route.Login -> OverviewScreen(onNavigate = router::navigate)
 
             // ログイン済みで /login に来たら概況を出す
             is Route.NotFound -> ErrorView("画面が見つかりません: ${route.path}")
