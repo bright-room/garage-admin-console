@@ -32,37 +32,27 @@ data class NodeSummary(
 )
 
 @Serializable
-data class LayoutSummary(
-    val version: Long,
-    val stagedChanges: Int,
-)
+data class LayoutSummary(val version: Long, val stagedChanges: Int)
 
 @Serializable
-data class StorageSummary(
-    val buckets: Int,
-    val keys: Int,
-)
+data class StorageSummary(val buckets: Int, val keys: Int)
 
 @Serializable
 enum class AlertSeverity { WARNING, ERROR }
 
 @Serializable
-data class OverviewAlert(
-    val severity: AlertSeverity,
-    val message: String,
-)
+data class OverviewAlert(val severity: AlertSeverity, val message: String)
 
-fun NodeResp.toSummary(): NodeSummary =
-    NodeSummary(
-        id = id,
-        isUp = isUp,
-        draining = draining,
-        hostname = hostname,
-        zone = role?.zone,
-        capacity = role?.capacity,
-        dataAvailable = dataPartition?.available,
-        dataTotal = dataPartition?.total,
-    )
+fun NodeResp.toSummary(): NodeSummary = NodeSummary(
+    id = id,
+    isUp = isUp,
+    draining = draining,
+    hostname = hostname,
+    zone = role?.zone,
+    capacity = role?.capacity,
+    dataAvailable = dataPartition?.available,
+    dataTotal = dataPartition?.total,
+)
 
 /**
  * 概況画面の異常帯に出す内容。正常時は空になる。

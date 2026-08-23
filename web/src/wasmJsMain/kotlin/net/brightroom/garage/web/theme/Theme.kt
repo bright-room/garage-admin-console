@@ -27,10 +27,7 @@ private val ConsoleColors = darkColorScheme(
  *   Compose の既定フォントを使う（日本語は表示できない）。
  */
 @Composable
-fun GarageAdminTheme(
-    fontFamily: FontFamily? = null,
-    content: @Composable () -> Unit,
-) {
+fun GarageAdminTheme(fontFamily: FontFamily? = null, content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = ConsoleColors,
         typography = fontFamily?.let { Typography().withFontFamily(it) } ?: Typography(),

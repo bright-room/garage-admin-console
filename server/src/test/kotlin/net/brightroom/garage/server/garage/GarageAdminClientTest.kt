@@ -2,10 +2,10 @@ package net.brightroom.garage.server.garage
 
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
-import io.ktor.http.ContentType
 import kotlinx.coroutines.test.runTest
 import net.brightroom.garage.shared.model.garage.ClusterHealth
 import net.brightroom.garage.shared.model.garage.ClusterHealthStatus

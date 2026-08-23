@@ -10,7 +10,4 @@ import kotlinx.serialization.json.JsonElement
  * Layout 画面を作る Phase 3 で型を付ける。
  */
 @Serializable
-data class ClusterLayout(
-    val version: Long,
-    val stagedRoleChanges: List<JsonElement> = emptyList(),
-)
+data class ClusterLayout(val version: Long, val stagedRoleChanges: List<JsonElement> = emptyList())

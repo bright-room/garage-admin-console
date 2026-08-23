@@ -44,21 +44,19 @@ class ApiClient(private val tokenProvider: () -> String?) {
         expectSuccess = false
     }
 
-    suspend fun getText(path: String): ApiResult<String> =
-        runCatching {
-            http.get(path) { authorize() }
-        }.fold(
-            onSuccess = { it.toResult { body -> body } },
-            onFailure = { ApiResult.Failure(networkProblem(it)) },
-        )
+    suspend fun getText(path: String): ApiResult<String> = runCatching {
+        http.get(path) { authorize() }
+    }.fold(
+        onSuccess = { it.toResult { body -> body } },
+        onFailure = { ApiResult.Failure(networkProblem(it)) },
+    )
 
-    suspend fun postEmpty(path: String): ApiResult<Unit> =
-        runCatching {
-            http.post(path) { authorize() }
-        }.fold(
-            onSuccess = { it.toResult { } },
-            onFailure = { ApiResult.Failure(networkProblem(it)) },
-        )
+    suspend fun postEmpty(path: String): ApiResult<Unit> = runCatching {
+        http.post(path) { authorize() }
+    }.fold(
+        onSuccess = { it.toResult { } },
+        onFailure = { ApiResult.Failure(networkProblem(it)) },
+    )
 
     private fun HttpRequestBuilder.authorize() {
         tokenProvider()?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -79,11 +77,10 @@ class ApiClient(private val tokenProvider: () -> String?) {
         runCatching { AppJson.decodeFromString<ProblemDetails>(body) }
             .getOrElse { problemOf(status, "サーバーからの応答を解釈できませんでした") }
 
-    private fun networkProblem(cause: Throwable): ProblemDetails =
-        problemOf(
-            status = HttpStatusCode.ServiceUnavailable,
-            detail = "サーバーに接続できませんでした: ${cause.message ?: "原因不明"}",
-        )
+    private fun networkProblem(cause: Throwable): ProblemDetails = problemOf(
+        status = HttpStatusCode.ServiceUnavailable,
+        detail = "サーバーに接続できませんでした: ${cause.message ?: "原因不明"}",
+    )
 }
 
 /**
@@ -95,21 +92,20 @@ private fun problemOf(status: HttpStatusCode, detail: String): ProblemDetails =
     ProblemDetails(title = status.description, status = status.value, detail = detail)
 
 /** 本文を [deserializer] でデコードして返す。 */
-suspend fun <T> ApiClient.getJson(
-    path: String,
-    deserializer: DeserializationStrategy<T>,
-): ApiResult<T> = when (val raw = getText(path)) {
-    is ApiResult.Success ->
-        runCatching { ApiResult.Success(AppJson.decodeFromString(deserializer, raw.value)) }
-            .getOrElse {
-                ApiResult.Failure(
-                    problemOf(
-                        status = HttpStatusCode.InternalServerError,
-                        detail = "サーバーからの応答を解釈できませんでした",
-                    ),
-                )
-            }
+suspend fun <T> ApiClient.getJson(path: String, deserializer: DeserializationStrategy<T>): ApiResult<T> =
+    when (val raw = getText(path)) {
+        is ApiResult.Success ->
+            runCatching { ApiResult.Success(AppJson.decodeFromString(deserializer, raw.value)) }
+                .getOrElse {
+                    ApiResult.Failure(
+                        problemOf(
+                            status = HttpStatusCode.InternalServerError,
+                            detail = "サーバーからの応答を解釈できませんでした",
+                        ),
+                    )
+                }
 
-    is ApiResult.Failure -> raw
-    ApiResult.Unauthorized -> ApiResult.Unauthorized
-}
+        is ApiResult.Failure -> raw
+
+        ApiResult.Unauthorized -> ApiResult.Unauthorized
+    }

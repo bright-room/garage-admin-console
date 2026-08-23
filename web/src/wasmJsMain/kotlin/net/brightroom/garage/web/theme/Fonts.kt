@@ -19,8 +19,7 @@ private const val FONT_PATH = "/fonts/NotoSansJP-Regular.ttf"
  * 読み込みに失敗した場合は null を返す。フォントが無くてもコンソールは
  * 起動すべきであり、英数字は既定フォントで読める。
  */
-suspend fun loadJapaneseFontFamily(): FontFamily? =
-    runCatching {
-        val bytes = HttpClient(Js).get(FONT_PATH).readRawBytes()
-        FontFamily(Font(identity = "NotoSansJP", data = bytes))
-    }.getOrNull()
+suspend fun loadJapaneseFontFamily(): FontFamily? = runCatching {
+    val bytes = HttpClient(Js).get(FONT_PATH).readRawBytes()
+    FontFamily(Font(identity = "NotoSansJP", data = bytes))
+}.getOrNull()

@@ -41,6 +41,5 @@ class IdleTracker(
     }
 
     /** 自動ログアウトまでの残り時間。期限を過ぎていれば 0。 */
-    fun remainingMillis(nowMillis: Long): Long =
-        (lastActivityAtMillis + timeoutMillis - nowMillis).coerceAtLeast(0)
+    fun remainingMillis(nowMillis: Long): Long = (lastActivityAtMillis + timeoutMillis - nowMillis).coerceAtLeast(0)
 }

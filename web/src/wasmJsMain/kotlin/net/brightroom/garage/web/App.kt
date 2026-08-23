@@ -77,7 +77,10 @@ private fun AuthenticatedApp(router: RouterState) {
     AppScaffold(router) {
         when (val route = router.current) {
             Route.Overview -> OverviewScreen()
-            Route.Login -> OverviewScreen()         // ログイン済みで /login に来たら概況を出す
+
+            Route.Login -> OverviewScreen()
+
+            // ログイン済みで /login に来たら概況を出す
             is Route.NotFound -> ErrorView("画面が見つかりません: ${route.path}")
 
             // Task 13 以降で各画面に差し替える

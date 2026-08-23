@@ -18,6 +18,19 @@ runs:
     - name: Set up Gradle
       uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
+    # :shared:wasmJsBrowserTest は Karma 経由で ChromeHeadless を起動する。
+    # karma-chrome-launcher は CHROME_BIN しか見ないため、ランナーに入っている
+    # Chrome を明示的に指す。見つからなければ黙って落とさず、ここで失敗させる。
+    - name: Resolve Chrome for wasmJs browser tests
+      shell: bash
+      run: |
+        CHROME=$(command -v google-chrome || command -v google-chrome-stable || true)
+        if [ -z "$CHROME" ]; then
+          echo "google-chrome not found on this runner" >&2
+          exit 1
+        fi
+        echo "CHROME_BIN=$CHROME" >> "$GITHUB_ENV"
+
     - name: Run Gradle command
       shell: bash
       env:
