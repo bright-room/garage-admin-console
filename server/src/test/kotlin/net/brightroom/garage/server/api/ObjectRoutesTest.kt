@@ -46,6 +46,12 @@ class ObjectRoutesTest {
     }
 
     @Test
+    fun fallsBackToOctetStreamOnlyWhenContentTypeIsWildcard() {
+        assertEquals("application/octet-stream", ContentType.Any.orOctetStreamIfAny())
+        assertEquals("text/plain", ContentType.Text.Plain.orOctetStreamIfAny())
+    }
+
+    @Test
     fun requiresKeyParameterForDownload() = testApplication {
         garageApp(engineOf(mapOf("GetBucketInfo" to (bucketBody(ownerKey) to HttpStatusCode.OK))))
 

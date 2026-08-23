@@ -2,6 +2,7 @@ package net.brightroom.garage.server.plugins
 
 import aws.sdk.kotlin.services.s3.model.NoSuchKey
 import aws.sdk.kotlin.services.s3.model.S3Exception
+import io.ktor.http.BadContentTypeFormatException
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -61,6 +62,14 @@ fun Application.configureStatusPages() {
             call.respondProblem(
                 status = HttpStatusCode.UnsupportedMediaType,
                 detail = "リクエストの Content-Type が application/json ではありません",
+            )
+        }
+
+        // Content-Type ヘッダの値そのものがパースできない形式。クライアント起因なので 400
+        exception<BadContentTypeFormatException> { call, _ ->
+            call.respondProblem(
+                status = HttpStatusCode.BadRequest,
+                detail = "Content-Type ヘッダの形式が不正です",
             )
         }
 

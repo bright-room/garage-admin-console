@@ -45,6 +45,7 @@ fun Route.objectRoutes(client: GarageAdminClient, resolver: S3CredentialResolver
         put {
             val token = call.adminToken()
             val key = call.queryParam("key")
+            val contentType = call.request.contentType().orOctetStreamIfAny()
             // Content-Length を先に確かめる。無ければ資格情報の解決すら試みない
             val contentLength = call.request.contentLength() ?: throw MissingContentLengthException()
             val credentials = resolver.resolve(token, call.pathParam("id"))
@@ -52,7 +53,7 @@ fun Route.objectRoutes(client: GarageAdminClient, resolver: S3CredentialResolver
             store.put(
                 credentials = credentials,
                 key = key,
-                contentType = call.request.contentType().toString(),
+                contentType = contentType,
                 contentLength = contentLength,
                 stream = call.receiveStream(),
             )
@@ -90,3 +91,10 @@ fun Route.objectRoutes(client: GarageAdminClient, resolver: S3CredentialResolver
         }
     }
 }
+
+/**
+ * `Content-Type` ヘッダが無いと Ktor はワイルドカード（[ContentType.Any]）を返す。
+ * S3 に渡す型としては無意味なので、その場合だけ既定にフォールバックする。
+ */
+internal fun ContentType.orOctetStreamIfAny(): String =
+    if (this == ContentType.Any) "application/octet-stream" else toString()
