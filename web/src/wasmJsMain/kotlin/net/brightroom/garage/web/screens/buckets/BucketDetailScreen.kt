@@ -31,6 +31,7 @@ import net.brightroom.garage.shared.api.BucketAliasRequest
 import net.brightroom.garage.shared.api.BucketKeyPermissionRequest
 import net.brightroom.garage.shared.api.CleanupUploadsRequest
 import net.brightroom.garage.shared.api.CleanupUploadsResult
+import net.brightroom.garage.shared.api.UpdateBucketRequest
 import net.brightroom.garage.shared.model.garage.BucketInfo
 import net.brightroom.garage.shared.model.garage.BucketKey
 import net.brightroom.garage.shared.model.garage.BucketKeyPermissions
@@ -186,7 +187,19 @@ fun BucketDetailScreen(
             },
         )
 
-        // 設定フォーム（quotas / website / CORS / lifecycle）は Task 15 でここに入る
+        BucketSettingsForm(current) { request ->
+            scope.launch {
+                apply(
+                    session.api.sendJson(
+                        HttpMethod.Patch,
+                        "/api/buckets/$bucketId",
+                        AppJson.encodeToString(UpdateBucketRequest.serializer(), request),
+                        BucketInfo.serializer(),
+                    ),
+                    success = "設定を保存しました",
+                )
+            }
+        }
 
         MaintenanceSection(
             bucket = current,
