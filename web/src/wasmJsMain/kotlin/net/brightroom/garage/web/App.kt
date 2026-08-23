@@ -1,48 +1,84 @@
 package net.brightroom.garage.web
 
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
+import net.brightroom.garage.shared.navigation.Route
+import net.brightroom.garage.web.components.ErrorView
 import net.brightroom.garage.web.navigation.AppScaffold
-import net.brightroom.garage.web.navigation.Screen
-import net.brightroom.garage.web.screens.admintoken.AdminTokenListScreen
-import net.brightroom.garage.web.screens.block.BlockErrorScreen
-import net.brightroom.garage.web.screens.bucket.BucketDetailScreen
-import net.brightroom.garage.web.screens.bucket.BucketListScreen
-import net.brightroom.garage.web.screens.cluster.ClusterScreen
-import net.brightroom.garage.web.screens.dashboard.DashboardScreen
-import net.brightroom.garage.web.screens.key.KeyDetailScreen
-import net.brightroom.garage.web.screens.key.KeyListScreen
-import net.brightroom.garage.web.screens.layout.LayoutScreen
-import net.brightroom.garage.web.screens.node.NodeScreen
-import net.brightroom.garage.web.screens.s3.ObjectBrowserScreen
-import net.brightroom.garage.web.screens.s3.S3BrowserScreen
-import net.brightroom.garage.web.screens.worker.WorkerScreen
+import net.brightroom.garage.web.router.RouterState
+import net.brightroom.garage.web.router.rememberRouter
+import net.brightroom.garage.web.screens.login.LoginScreen
+import net.brightroom.garage.web.screens.overview.OverviewScreen
+import net.brightroom.garage.web.session.LocalSession
+import net.brightroom.garage.web.session.SessionState
 import net.brightroom.garage.web.theme.GarageAdminTheme
+import net.brightroom.garage.web.theme.loadJapaneseFontFamily
 
 @Composable
 fun App() {
-    var currentScreen by remember { mutableStateOf<Screen>(Screen.Dashboard) }
-    val onNavigate: (Screen) -> Unit = { currentScreen = it }
+    val router = rememberRouter()
+    val session = remember { SessionState() }
 
-    GarageAdminTheme {
-        AppScaffold(
-            currentScreen = currentScreen,
-            onNavigate = onNavigate,
-        ) {
-            when (val screen = currentScreen) {
-                is Screen.Dashboard -> DashboardScreen()
-                is Screen.Cluster -> ClusterScreen()
-                is Screen.Layout -> LayoutScreen()
-                is Screen.Buckets -> BucketListScreen(onNavigate)
-                is Screen.Keys -> KeyListScreen(onNavigate)
-                is Screen.S3Browser -> S3BrowserScreen(onNavigate)
-                is Screen.AdminTokens -> AdminTokenListScreen()
-                is Screen.Nodes -> NodeScreen()
-                is Screen.Workers -> WorkerScreen()
-                is Screen.Blocks -> BlockErrorScreen()
-                is Screen.BucketDetail -> BucketDetailScreen(screen.bucketId, onNavigate)
-                is Screen.KeyDetail -> KeyDetailScreen(screen.keyId, onNavigate)
-                is Screen.ObjectBrowser -> ObjectBrowserScreen(screen.bucketId, screen.bucketAlias, onNavigate)
+    // sessionStorage に残ったトークンでの復帰を試みる間は判断を保留する
+    var restoring by remember { mutableStateOf(true) }
+
+    // 日本語グリフを持つフォント。読み込み前に描画すると豆腐が一瞬見えるため、
+    // 復帰の判定と同じ待ちに含める。
+    var fontFamily by remember { mutableStateOf<FontFamily?>(null) }
+
+    LaunchedEffect(Unit) {
+        fontFamily = loadJapaneseFontFamily()
+        session.restore()
+        restoring = false
+    }
+
+    GarageAdminTheme(fontFamily) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            CompositionLocalProvider(LocalSession provides session) {
+                when {
+                    restoring -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+
+                    !session.isSignedIn -> LoginScreen(
+                        onSignedIn = {
+                            val destination =
+                                if (router.current == Route.Login) Route.Overview else router.current
+                            router.replace(destination)
+                        },
+                    )
+
+                    else -> AuthenticatedApp(router)
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun AuthenticatedApp(router: RouterState) {
+    AppScaffold(router) {
+        when (val route = router.current) {
+            Route.Overview -> OverviewScreen()
+            Route.Login -> OverviewScreen()         // ログイン済みで /login に来たら概況を出す
+            is Route.NotFound -> ErrorView("画面が見つかりません: ${route.path}")
         }
     }
 }

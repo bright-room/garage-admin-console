@@ -1,86 +1,131 @@
 package net.brightroom.garage.server.plugins
 
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.plugins.contentnegotiation.*
-import io.ktor.server.routing.*
-import io.ktor.server.testing.*
-import kotlinx.serialization.json.Json
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.get
+import io.ktor.server.routing.routing
+import io.ktor.http.contentType
+import io.ktor.server.testing.testApplication
+import net.brightroom.garage.server.api.MissingTokenException
+import net.brightroom.garage.server.garage.GarageException
+import net.brightroom.garage.shared.api.ProblemDetails
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class StatusPagesTest {
 
-    @Test
-    fun handleNotFound() = testApplication {
-        install(ContentNegotiation) { json() }
-        application { configureStatusPages() }
-
-        client.get("/nonexistent").apply {
-            assertEquals(HttpStatusCode.NotFound, status)
-            val body = Json.decodeFromString<ErrorResponse>(bodyAsText())
-            assertEquals("Not found", body.error)
-        }
-    }
+    private fun problemOf(body: String): ProblemDetails =
+        GarageJson.decodeFromString(body)
 
     @Test
-    fun handleIllegalArgumentException() = testApplication {
-        install(ContentNegotiation) { json() }
-        application { configureStatusPages() }
-        routing {
-            get("/bad") {
-                throw IllegalArgumentException("Invalid input")
+    fun normalisesForbiddenFromGarage() = testApplication {
+        application {
+            configureSerialization()
+            configureStatusPages()
+            routing {
+                get("/boom") {
+                    throw GarageException(
+                        status = HttpStatusCode.Forbidden,
+                        operation = "GetKeyInfo",
+                        message = "insufficient scope",
+                    )
+                }
             }
         }
 
-        client.get("/bad").apply {
-            assertEquals(HttpStatusCode.BadRequest, status)
-            val body = Json.decodeFromString<ErrorResponse>(bodyAsText())
-            assertEquals("Invalid input", body.error)
-        }
+        val response = client.get("/boom")
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        val problem = problemOf(response.bodyAsText())
+        assertEquals(HttpStatusCode.Forbidden.value, problem.status)
+        assertEquals("Forbidden", problem.title)
+        assertEquals("insufficient scope", problem.detail)
+        assertEquals("GetKeyInfo", problem.operation)
+        assertEquals("/boom", problem.instance)
     }
 
     @Test
-    fun handleIllegalStateException() = testApplication {
-        install(ContentNegotiation) { json() }
-        application { configureStatusPages() }
-        routing {
-            get("/conflict") {
-                throw IllegalStateException("Resource conflict")
+    fun usesProblemJsonMediaType() = testApplication {
+        application {
+            configureSerialization()
+            configureStatusPages()
+            routing {
+                get("/boom") { throw MissingTokenException() }
             }
         }
 
-        client.get("/conflict").apply {
-            assertEquals(HttpStatusCode.Conflict, status)
-            val body = Json.decodeFromString<ErrorResponse>(bodyAsText())
-            assertEquals("Resource conflict", body.error)
-        }
+        val response = client.get("/boom")
+
+        // RFC 9457 の定める media type
+        assertEquals("application/problem+json", response.contentType()?.withoutParameters()?.toString())
     }
 
     @Test
-    fun handleGenericException() = testApplication {
-        install(ContentNegotiation) { json() }
-        application { configureStatusPages() }
-        routing {
-            get("/error") {
-                throw RuntimeException("Something broke")
+    fun missingTokenBecomesUnauthorized() = testApplication {
+        application {
+            configureSerialization()
+            configureStatusPages()
+            routing {
+                get("/boom") { throw MissingTokenException() }
             }
         }
 
-        client.get("/error").apply {
-            assertEquals(HttpStatusCode.InternalServerError, status)
-            val body = Json.decodeFromString<ErrorResponse>(bodyAsText())
-            assertEquals("Something broke", body.error)
-        }
+        val response = client.get("/boom")
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        assertEquals(HttpStatusCode.Unauthorized.value, problemOf(response.bodyAsText()).status)
     }
 
     @Test
-    fun errorResponseSerialization() {
-        val error = ErrorResponse("test error")
-        val encoded = Json.encodeToString(error)
-        val decoded = Json.decodeFromString<ErrorResponse>(encoded)
-        assertEquals("test error", decoded.error)
+    fun unexpectedExceptionBecomesInternalError() = testApplication {
+        application {
+            configureSerialization()
+            configureStatusPages()
+            routing {
+                get("/boom") { throw IllegalStateException("unexpected") }
+            }
+        }
+
+        val response = client.get("/boom")
+
+        assertEquals(HttpStatusCode.InternalServerError, response.status)
+        val problem = problemOf(response.bodyAsText())
+        assertEquals(HttpStatusCode.InternalServerError.value, problem.status)
+        assertEquals("Internal Server Error", problem.title)
+        // 内部エラーの詳細は外に出さない
+        assertEquals(null, problem.operation)
+    }
+
+    @Test
+    fun unknownApiPathReturnsNormalisedNotFound() = testApplication {
+        application {
+            configureSerialization()
+            configureStatusPages()
+            routing {
+                get("/ok") { call.respondText("ok") }
+            }
+        }
+
+        val response = client.get("/api/does-not-exist")
+
+        assertEquals(HttpStatusCode.NotFound, response.status)
+        assertEquals(HttpStatusCode.NotFound.value, problemOf(response.bodyAsText()).status)
+    }
+
+    @Test
+    fun omitsTypeMemberSoItDefaultsToAboutBlank() = testApplication {
+        application {
+            configureSerialization()
+            configureStatusPages()
+            routing {
+                get("/boom") { throw MissingTokenException() }
+            }
+        }
+
+        val body = client.get("/boom").bodyAsText()
+
+        assertEquals(false, body.contains("\"type\""))
     }
 }

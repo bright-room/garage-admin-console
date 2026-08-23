@@ -7,5 +7,5 @@
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
-    <logger name="io.ktor" level="INFO"/>
+    <logger name="io.ktor.routing.Routing" level="INFO"/>
 </configuration>

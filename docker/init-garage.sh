@@ -95,4 +95,26 @@ else
   echo "Bucket already exists, skipping."
 fi
 
+# Create a named admin token for console login
+EXISTING_TOKENS=$(curl -sf -H "Authorization: Bearer ${ADMIN_TOKEN}" "${GARAGE_ADMIN}/v2/ListAdminTokens")
+CONSOLE_TOKEN_COUNT=$(echo "${EXISTING_TOKENS}" | jq '[.[] | select(.name == "dev-console")] | length')
+
+if [ "${CONSOLE_TOKEN_COUNT}" = "0" ]; then
+  echo "Creating admin token 'dev-console'..."
+  TOKEN_RESPONSE=$(curl -sf -X POST \
+    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{"name": "dev-console", "neverExpires": true, "scope": ["*"]}' \
+    "${GARAGE_ADMIN}/v2/CreateAdminToken")
+
+  CONSOLE_TOKEN=$(echo "${TOKEN_RESPONSE}" | jq -r '.secretToken')
+
+  echo "============================================"
+  echo "Console login token: ${CONSOLE_TOKEN}"
+  echo "============================================"
+else
+  echo "Admin token 'dev-console' already exists."
+  echo "Delete it and re-run to obtain a new one (the secret is shown only once)."
+fi
+
 echo "Garage initialization complete!"

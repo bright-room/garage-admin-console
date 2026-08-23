@@ -1,14 +1,5 @@
-ktor:
-  application:
-    modules:
-      - net.brightroom.garage.server.ApplicationKt.module
-
+# テストは各テストが必要なプラグインだけを明示的に構成するため、
+# ktor.application.modules は列挙しない。ここに置くのは設定値だけ。
 garage:
   admin:
-    endpoint: http://localhost:9999
-    token: test-token
-  s3:
-    endpoint: http://localhost:9998
-    accessKeyId: test-access-key
-    secretAccessKey: test-secret-key
-    region: test-region
+    endpoint: http://garage.test:3903

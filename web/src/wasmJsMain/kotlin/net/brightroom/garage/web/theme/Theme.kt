@@ -1,39 +1,58 @@
 package net.brightroom.garage.web.theme
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.font.FontFamily
 
-private val DarkColorScheme = darkColorScheme(
-    primary = md_theme_dark_primary,
-    onPrimary = md_theme_dark_onPrimary,
-    primaryContainer = md_theme_dark_primaryContainer,
-    onPrimaryContainer = md_theme_dark_onPrimaryContainer,
-    secondary = md_theme_dark_secondary,
-    onSecondary = md_theme_dark_onSecondary,
-    secondaryContainer = md_theme_dark_secondaryContainer,
-    onSecondaryContainer = md_theme_dark_onSecondaryContainer,
-    tertiary = md_theme_dark_tertiary,
-    onTertiary = md_theme_dark_onTertiary,
-    tertiaryContainer = md_theme_dark_tertiaryContainer,
-    onTertiaryContainer = md_theme_dark_onTertiaryContainer,
-    error = md_theme_dark_error,
-    onError = md_theme_dark_onError,
-    errorContainer = md_theme_dark_errorContainer,
-    onErrorContainer = md_theme_dark_onErrorContainer,
-    background = md_theme_dark_background,
-    onBackground = md_theme_dark_onBackground,
-    surface = md_theme_dark_surface,
-    onSurface = md_theme_dark_onSurface,
-    surfaceVariant = md_theme_dark_surfaceVariant,
-    onSurfaceVariant = md_theme_dark_onSurfaceVariant,
-    outline = md_theme_dark_outline,
+private val ConsoleColors = darkColorScheme(
+    primary = Primary,
+    onPrimary = OnPrimary,
+    background = Background,
+    onBackground = OnBackground,
+    surface = Surface,
+    onSurface = OnBackground,
+    surfaceVariant = SurfaceVariant,
+    onSurfaceVariant = OnSurfaceVariant,
+    outline = Outline,
+    error = Error,
+    onError = OnError,
 )
 
+/**
+ * ダーク固定。ライトテーマは要件に含まれない（spec §8.8）。
+ *
+ * @param fontFamily [loadJapaneseFontFamily] が読み込んだフォント。null なら
+ *   Compose の既定フォントを使う（日本語は表示できない）。
+ */
 @Composable
-fun GarageAdminTheme(content: @Composable () -> Unit) {
+fun GarageAdminTheme(
+    fontFamily: FontFamily? = null,
+    content: @Composable () -> Unit,
+) {
     MaterialTheme(
-        colorScheme = DarkColorScheme,
+        colorScheme = ConsoleColors,
+        typography = fontFamily?.let { Typography().withFontFamily(it) } ?: Typography(),
         content = content,
     )
 }
+
+/** Material3 の全スタイルに同じフォントを適用する。 */
+private fun Typography.withFontFamily(family: FontFamily): Typography = Typography(
+    displayLarge = displayLarge.copy(fontFamily = family),
+    displayMedium = displayMedium.copy(fontFamily = family),
+    displaySmall = displaySmall.copy(fontFamily = family),
+    headlineLarge = headlineLarge.copy(fontFamily = family),
+    headlineMedium = headlineMedium.copy(fontFamily = family),
+    headlineSmall = headlineSmall.copy(fontFamily = family),
+    titleLarge = titleLarge.copy(fontFamily = family),
+    titleMedium = titleMedium.copy(fontFamily = family),
+    titleSmall = titleSmall.copy(fontFamily = family),
+    bodyLarge = bodyLarge.copy(fontFamily = family),
+    bodyMedium = bodyMedium.copy(fontFamily = family),
+    bodySmall = bodySmall.copy(fontFamily = family),
+    labelLarge = labelLarge.copy(fontFamily = family),
+    labelMedium = labelMedium.copy(fontFamily = family),
+    labelSmall = labelSmall.copy(fontFamily = family),
+)

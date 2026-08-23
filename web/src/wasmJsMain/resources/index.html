@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,7 +11,7 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #1a1a2e;
+            background-color: #101418;
         }
         #ComposeTarget {
             width: 100%;
@@ -21,6 +21,7 @@
 </head>
 <body>
 <canvas id="ComposeTarget"></canvas>
-<script src="garage-admin-console.js"></script>
+<!-- 絶対パスで参照すること。SPA フォールバックにより /buckets/abc でもこの HTML が返るため。 -->
+<script src="/garage-admin-console.js"></script>
 </body>
 </html>

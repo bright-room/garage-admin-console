@@ -1,45 +1,66 @@
 package net.brightroom.garage.web.navigation
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import net.brightroom.garage.shared.api.allows
+import net.brightroom.garage.shared.navigation.Route
+import net.brightroom.garage.web.session.LocalSession
 
 @Composable
 fun Sidebar(
-    currentScreen: Screen,
-    onNavigate: (Screen) -> Unit,
-    modifier: Modifier = Modifier,
+    current: Route,
+    onNavigate: (Route) -> Unit,
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = modifier.width(240.dp).fillMaxHeight(),
+    val session = LocalSession.current
+
+    Column(
+        modifier = Modifier
+            .width(240.dp)
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(vertical = 16.dp, horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(vertical = 16.dp)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Text(
-                text = "Garage Admin",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-            )
+        Text(
+            "Garage",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(start = 12.dp, bottom = 12.dp),
+        )
 
-            Spacer(Modifier.height(8.dp))
+        navGroups.forEach { group ->
+            group.title?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 4.dp),
+                )
+            }
 
-            Screen.sidebarItems.forEach { screen ->
+            group.items.forEach { item ->
+                val enabled = item.requiredOperation == null ||
+                    session.info?.allows(item.requiredOperation) == true
+
                 NavigationDrawerItem(
-                    label = { Text(screen.title) },
-                    selected = currentScreen::class == screen::class,
-                    onClick = { onNavigate(screen) },
-                    modifier = Modifier.padding(horizontal = 12.dp),
+                    label = {
+                        Text(
+                            if (enabled) item.label else "${item.label}（権限なし）",
+                        )
+                    },
+                    selected = current == item.route,
+                    onClick = { if (enabled) onNavigate(item.route) },
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }

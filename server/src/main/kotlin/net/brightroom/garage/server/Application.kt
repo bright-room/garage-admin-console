@@ -1,16 +1,13 @@
 package net.brightroom.garage.server
 
 import io.ktor.server.cio.EngineMain
-import net.brightroom.garage.server.plugins.*
 
+/**
+ * エントリポイント。
+ *
+ * どのプラグインをどの順で構成するかは `application.yaml` の
+ * `ktor.application.modules` が持つ。
+ */
 fun main(args: Array<String>) {
     EngineMain.main(args)
-}
-
-fun io.ktor.server.application.Application.module() {
-    configureDi()
-    configureSerialization()
-    configureStatusPages()
-    configureRouting()
-    configureStaticFiles()
 }
