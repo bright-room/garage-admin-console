@@ -8,7 +8,6 @@ kotlinx-datetime = "0.8.0-0.6.x-compat"
 aws-sdk-kotlin = "1.8.31"
 logback = "1.6.3"
 spotless = "8.10.0"
-ktlint = "1.8.0"
 
 [libraries]
 # Ktor Server

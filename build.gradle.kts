@@ -27,12 +27,12 @@ spotless {
     kotlin {
         target("**/*.kt")
         targetExclude("**/build/**")
-        ktlint(libs.versions.ktlint.get()).editorConfigOverride(ktlintRules)
+        ktlint().editorConfigOverride(ktlintRules)
     }
     kotlinGradle {
         target("**/*.gradle.kts")
         targetExclude("**/build/**")
-        ktlint(libs.versions.ktlint.get()).editorConfigOverride(ktlintRules)
+        ktlint().editorConfigOverride(ktlintRules)
     }
 }
 
