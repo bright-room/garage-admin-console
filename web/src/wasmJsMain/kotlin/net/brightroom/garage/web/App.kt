@@ -26,6 +26,7 @@ import net.brightroom.garage.web.screens.buckets.BucketsScreen
 import net.brightroom.garage.web.screens.keys.KeyDetailScreen
 import net.brightroom.garage.web.screens.keys.KeysScreen
 import net.brightroom.garage.web.screens.login.LoginScreen
+import net.brightroom.garage.web.screens.objects.ObjectBrowserScreen
 import net.brightroom.garage.web.screens.overview.OverviewScreen
 import net.brightroom.garage.web.session.LocalSession
 import net.brightroom.garage.web.session.SessionState
@@ -104,8 +105,12 @@ private fun AuthenticatedApp(router: RouterState) {
                 onDeleted = { router.replace(Route.Keys) },
             )
 
-            // Task 17 以降で差し替える
-            is Route.Objects -> OverviewScreen()
+            is Route.Objects -> ObjectBrowserScreen(
+                bucketId = route.bucketId,
+                prefix = route.prefix,
+                onNavigatePrefix = { router.navigate(Route.Objects(route.bucketId, it)) },
+                onOpenBucket = { router.navigate(Route.BucketDetail(it)) },
+            )
         }
     }
 }
