@@ -10,6 +10,11 @@ import net.brightroom.garage.shared.model.garage.BucketKey
  *
  * scope で事前に判定はしない。GetBucketInfo や GetKeyInfo が 403 を返したら
  * そのまま伝播させ、S3 ブラウザだけが縮退する（spec §6.3）。
+ *
+ * global alias を持たないバケットは、選んだキーの local alias でしかアドレスできない
+ * （spec §6.5）。そのためキー選択も local alias を持つキーに限定する。そうしないと、
+ * 優先度の最上位キーが local alias を持たないだけで、実際にはアドレスできるバケットが
+ * 「S3 でアドレスできない」と誤って報告される。
  */
 class S3CredentialResolver(private val client: GarageAdminClient, private val cache: SecretCache) {
 
@@ -19,13 +24,21 @@ class S3CredentialResolver(private val client: GarageAdminClient, private val ca
         cache.get(tokenHash, bucketId)?.let { return it }
 
         val bucket = client.getBucketInfo(token, bucketId)
-        val key = bucket.keys.selectForObjectAccess() ?: throw NoUsableKeyException(bucketId)
+        val globalAlias = bucket.globalAliases.firstOrNull()
 
-        // S3 API はバケット名を要求する。global alias が無ければ、選んだキーから見た
-        // local alias を使う（spec §6.5）
-        val bucketName = bucket.globalAliases.firstOrNull()
-            ?: key.bucketLocalAliases.firstOrNull()
-            ?: throw BucketNotAddressableException(bucketId)
+        val usableKeys = bucket.keys.filter { it.permissions.rank > 0 }
+        if (usableKeys.isEmpty()) throw NoUsableKeyException(bucketId)
+
+        // global alias が無いバケットは、導出したキーの local alias でしかアドレスできない
+        // （spec §6.5）。優先度の規則はアドレスできるキーの中で適用する
+        val candidates = if (globalAlias == null) {
+            usableKeys.filter { it.bucketLocalAliases.isNotEmpty() }
+        } else {
+            usableKeys
+        }
+        val key = candidates.selectForObjectAccess() ?: throw BucketNotAddressableException(bucketId)
+
+        val bucketName = globalAlias ?: key.bucketLocalAliases.first()
 
         // showSecretKey=true を付けたときだけ secret が入る。Garage が返さないのは想定外
         val secret = client.getKeyInfo(token, key.accessKeyId, showSecret = true).secretAccessKey

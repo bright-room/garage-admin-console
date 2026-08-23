@@ -187,6 +187,43 @@ class S3CredentialResolverTest {
     }
 
     @Test
+    fun selectsAmongLocalAliasHoldersWhenNoGlobalAlias() = runTest {
+        // global alias 無し。owner (GK-owner) は local alias を持たず、read+write (GK-rw) は
+        // 持つ。owner を選ぶと 6.5 のバケット名解決に失敗する（BucketNotAddressableException）
+        // が、read+write を選べばアドレスできる。§6.4 は「アドレスできるキーの中で」優先度を
+        // 適用しなければならない
+        val ownerWithoutLocalAlias = """
+            {"id":"b1","globalAliases":[],"websiteAccess":false,"objects":0,"bytes":0,
+             "unfinishedUploads":0,"unfinishedMultipartUploads":0,"unfinishedMultipartUploadParts":0,
+             "unfinishedMultipartUploadBytes":0,"quotas":{},
+             "keys":[
+               {"accessKeyId":"GK-owner","name":"owner-key","bucketLocalAliases":[],
+                "permissions":{"owner":true,"read":true,"write":true}},
+               {"accessKeyId":"GK-rw","name":"rw-key","bucketLocalAliases":["mine"],
+                "permissions":{"owner":false,"read":true,"write":true}}]}
+        """.trimIndent()
+
+        val resolver = S3CredentialResolver(
+            GarageAdminClient(
+                "http://garage.test:3903",
+                engineOf(
+                    mapOf(
+                        "GetBucketInfo" to (ownerWithoutLocalAlias to HttpStatusCode.OK),
+                        "GetKeyInfo" to (secretBody("GK-rw", "rw-key") to HttpStatusCode.OK),
+                    ),
+                ),
+            ),
+            SecretCache(),
+        )
+
+        val credentials = resolver.resolve("tok", "b1")
+
+        assertEquals("GK-rw", credentials.accessKeyId)
+        assertEquals("rw-key", credentials.keyName)
+        assertEquals("mine", credentials.bucketName)
+    }
+
+    @Test
     fun failsWhenNoKeyCanRead() = runTest {
         val writeOnly = """
             {"id":"b1","globalAliases":["dev-bucket"],"websiteAccess":false,"objects":0,"bytes":0,
