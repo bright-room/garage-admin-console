@@ -72,6 +72,12 @@ suspend fun GarageAdminClient.removeBucketAlias(token: String, bucketId: String,
     post(token, REMOVE_BUCKET_ALIAS, aliasBody(bucketId, alias))
         .garageBody(REMOVE_BUCKET_ALIAS)
 
+/**
+ * Garage 自身がこの operation の意味論を unconventional と明記している。
+ *
+ * true にしたフラグだけが付与される。false のフラグは無視され、キーの既存の権限が
+ * そのまま保たれる（剥奪されない）。剥奪したいときは [denyBucketKey] を使う。
+ */
 suspend fun GarageAdminClient.allowBucketKey(
     token: String,
     bucketId: String,

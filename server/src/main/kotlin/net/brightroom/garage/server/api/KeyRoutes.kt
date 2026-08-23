@@ -33,13 +33,15 @@ fun Route.keyRoutes(client: GarageAdminClient) {
         }
 
         post {
+            val token = call.adminToken()
             val request = call.receive<CreateKeyRequest>()
-            call.respond(client.createKey(call.adminToken(), request))
+            call.respond(client.createKey(token, request))
         }
 
         post("/import") {
+            val token = call.adminToken()
             val request = call.receive<ImportKeyRequest>()
-            call.respond(client.importKey(call.adminToken(), request))
+            call.respond(client.importKey(token, request))
         }
 
         get("/{id}") {
@@ -48,8 +50,9 @@ fun Route.keyRoutes(client: GarageAdminClient) {
         }
 
         patch("/{id}") {
+            val token = call.adminToken()
             val request = call.receive<UpdateKeyRequest>()
-            call.respond(client.updateKey(call.adminToken(), call.pathParam("id"), request))
+            call.respond(client.updateKey(token, call.pathParam("id"), request))
         }
 
         delete("/{id}") {

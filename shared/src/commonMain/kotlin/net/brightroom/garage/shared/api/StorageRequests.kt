@@ -53,6 +53,10 @@ data class WebsiteAccessRequest(
 @Serializable
 data class BucketAliasRequest(val alias: String)
 
+/**
+ * ここで false にしたフラグは剥奪されない。既存の権限がそのまま保たれる
+ * （Garage の `AllowBucketKey` の意味論）。剥奪は DELETE。
+ */
 @Serializable
 data class BucketKeyPermissionRequest(val permissions: BucketKeyPermissions)
 

@@ -5,6 +5,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.application.log
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ContentTransformationException
 import io.ktor.server.plugins.NotFoundException
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.path
@@ -46,6 +47,14 @@ fun Application.configureStatusPages() {
             call.respondProblem(
                 status = HttpStatusCode.BadRequest,
                 detail = "リクエストの内容を解釈できませんでした",
+            )
+        }
+
+        // Content-Type が無い / JSON でない。クライアント起因なのでサーバー障害として扱わない
+        exception<ContentTransformationException> { call, _ ->
+            call.respondProblem(
+                status = HttpStatusCode.UnsupportedMediaType,
+                detail = "リクエストの Content-Type が application/json ではありません",
             )
         }
 

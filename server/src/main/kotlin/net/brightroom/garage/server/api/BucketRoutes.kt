@@ -41,8 +41,9 @@ fun Route.bucketRoutes(client: GarageAdminClient) {
         }
 
         post {
+            val token = call.adminToken()
             val request = call.receive<CreateBucketRequest>()
-            call.respond(client.createBucket(call.adminToken(), request))
+            call.respond(client.createBucket(token, request))
         }
 
         route("/{id}") {
@@ -51,8 +52,9 @@ fun Route.bucketRoutes(client: GarageAdminClient) {
             }
 
             patch {
+                val token = call.adminToken()
                 val request = call.receive<UpdateBucketRequest>()
-                call.respond(client.updateBucket(call.adminToken(), call.pathParam("id"), request))
+                call.respond(client.updateBucket(token, call.pathParam("id"), request))
             }
 
             delete {
@@ -61,9 +63,10 @@ fun Route.bucketRoutes(client: GarageAdminClient) {
             }
 
             post("/aliases") {
+                val token = call.adminToken()
                 val request = call.receive<BucketAliasRequest>()
                 call.respond(
-                    client.addBucketAlias(call.adminToken(), call.pathParam("id"), request.alias),
+                    client.addBucketAlias(token, call.pathParam("id"), request.alias),
                 )
             }
 
@@ -78,11 +81,14 @@ fun Route.bucketRoutes(client: GarageAdminClient) {
                 )
             }
 
+            // true のフラグだけが付与される。false は無視され、既存の権限は保たれる。
+            // 剥奪は DELETE（全権限を落とす）
             put("/keys/{keyId}") {
+                val token = call.adminToken()
                 val request = call.receive<BucketKeyPermissionRequest>()
                 call.respond(
                     client.allowBucketKey(
-                        call.adminToken(),
+                        token,
                         call.pathParam("id"),
                         call.pathParam("keyId"),
                         request.permissions,
@@ -103,9 +109,10 @@ fun Route.bucketRoutes(client: GarageAdminClient) {
             }
 
             post("/cleanup-uploads") {
+                val token = call.adminToken()
                 val request = call.receive<CleanupUploadsRequest>()
                 val deleted = client.cleanupIncompleteUploads(
-                    call.adminToken(),
+                    token,
                     call.pathParam("id"),
                     request.olderThanSecs,
                 )

@@ -26,6 +26,7 @@ import net.brightroom.garage.shared.model.garage.BucketInfo
 import net.brightroom.garage.shared.model.garage.BucketSummary
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class BucketRoutesTest {
@@ -133,6 +134,32 @@ class BucketRoutesTest {
         assertTrue(response.headers[HttpHeaders.ContentType]!!.contains("application/problem+json"))
         val problem = GarageJson.decodeFromString<ProblemDetails>(response.bodyAsText())
         assertEquals("リクエストの内容を解釈できませんでした", problem.detail)
+    }
+
+    @Test
+    fun rejectsMissingTokenBeforeParsingBody() = testApplication {
+        garageApp(MockEngine { respond(bucketInfoBody, HttpStatusCode.OK, jsonHeaders) })
+
+        // Authorization も本文も両方不正。トークンが先に評価されるべきなので 401
+        val response = client.post("/api/buckets") {
+            contentType(ContentType.Application.Json)
+            setBody("not json")
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+    }
+
+    @Test
+    fun rejectsMissingContentType() = testApplication {
+        garageApp(MockEngine { respond(bucketInfoBody, HttpStatusCode.OK, jsonHeaders) })
+
+        val response = client.post("/api/buckets") {
+            header(HttpHeaders.Authorization, "Bearer tok")
+            setBody("""{"globalAlias":"new-bucket"}""")
+        }
+
+        assertEquals(HttpStatusCode.UnsupportedMediaType, response.status)
+        assertTrue(response.headers[HttpHeaders.ContentType]!!.contains("application/problem+json"))
     }
 
     @Test
@@ -253,7 +280,15 @@ class BucketRoutesTest {
         assertEquals("AllowBucketKey", operation)
         val sent = json.decodeFromString<JsonObject>(sentBody)
         assertEquals("GK01", sent["accessKeyId"]?.toString()?.trim('"'))
-        assertTrue(sent["permissions"].toString().contains("\"write\":true"))
+        val permissions = sent["permissions"].toString()
+        assertTrue(permissions.contains("\"write\":true"))
+        // owner:false は Kotlin 側の既定値と同じなので GarageJson の encodeDefaults により
+        // JSON に出ない。「owner を false にする」＝「owner キーを送らない」であり、
+        // どちらでも Garage は owner を書き換えない（true のフラグしか見ないため、P2-11 の
+        // 隣の DELETE と違って、これは「置き換え」ではない）。write:true だけを見ると
+        // 「permissions を丸ごと置き換えている」と誤読しやすいので、owner が true としては
+        // 送られていないことも確かめる
+        assertFalse(permissions.contains("\"owner\":true"))
     }
 
     @Test
