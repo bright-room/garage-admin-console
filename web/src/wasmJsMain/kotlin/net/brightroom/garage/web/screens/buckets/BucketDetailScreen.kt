@@ -4,15 +4,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.ktor.http.HttpMethod
 import kotlinx.coroutines.launch
+import kotlinx.serialization.builtins.ListSerializer
 import net.brightroom.garage.shared.api.BucketAliasRequest
 import net.brightroom.garage.shared.api.BucketKeyPermissionRequest
 import net.brightroom.garage.shared.api.CleanupUploadsRequest
@@ -35,6 +39,7 @@ import net.brightroom.garage.shared.api.UpdateBucketRequest
 import net.brightroom.garage.shared.model.garage.BucketInfo
 import net.brightroom.garage.shared.model.garage.BucketKey
 import net.brightroom.garage.shared.model.garage.BucketKeyPermissions
+import net.brightroom.garage.shared.model.garage.KeySummary
 import net.brightroom.garage.shared.navigation.percentEncode
 import net.brightroom.garage.web.api.ApiResult
 import net.brightroom.garage.web.api.AppJson
@@ -61,7 +66,7 @@ fun BucketDetailScreen(
 
     var bucket by remember(bucketId) { mutableStateOf<BucketInfo?>(null) }
     var failure by remember(bucketId) { mutableStateOf<ApiResult.Failure?>(null) }
-    var notice by remember(bucketId) { mutableStateOf<String?>(null) }
+    var notice by remember(bucketId) { mutableStateOf<Notice?>(null) }
     var deleting by remember(bucketId) { mutableStateOf(false) }
 
     suspend fun load() {
@@ -81,11 +86,11 @@ fun BucketDetailScreen(
     suspend fun apply(result: ApiResult<*>, success: String? = null) {
         when (result) {
             is ApiResult.Success -> {
-                notice = success
+                notice = success?.let { Notice(it) }
                 load()
             }
 
-            is ApiResult.Failure -> notice = result.problem.displayMessage
+            is ApiResult.Failure -> notice = Notice(result.problem.displayMessage, failed = true)
 
             ApiResult.Unauthorized -> session.invalidate()
         }
@@ -117,7 +122,11 @@ fun BucketDetailScreen(
 
         failure?.let { ProblemView(it.problem, it.status, onRetry = { scope.launch { load() } }) }
         notice?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(
+                it.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (it.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            )
         }
 
         if (current == null) {
@@ -173,6 +182,10 @@ fun BucketDetailScreen(
                         success = "${key.name} に権限を付与しました",
                     )
                 }
+            },
+            onGranted = { name ->
+                notice = Notice("$name に権限を付与しました")
+                scope.launch { load() }
             },
             onRevoke = { key ->
                 scope.launch {
@@ -236,7 +249,7 @@ fun BucketDetailScreen(
                 scope.launch {
                     when (val result = session.api.sendEmpty(HttpMethod.Delete, "/api/buckets/$bucketId")) {
                         is ApiResult.Success -> onDeleted()
-                        is ApiResult.Failure -> notice = result.problem.displayMessage
+                        is ApiResult.Failure -> notice = Notice(result.problem.displayMessage, failed = true)
                         ApiResult.Unauthorized -> session.invalidate()
                     }
                 }
@@ -244,6 +257,9 @@ fun BucketDetailScreen(
         )
     }
 }
+
+/** [BucketDetailScreen] と [net.brightroom.garage.web.screens.keys.KeyDetailScreen] の notice 表示で共有する。 */
+internal data class Notice(val message: String, val failed: Boolean = false)
 
 @Composable
 internal fun BucketSection(title: String, content: @Composable () -> Unit) {
@@ -339,22 +355,38 @@ private fun AliasSection(bucket: BucketInfo, onAdd: (String, () -> Unit) -> Unit
  * 既存の権限が保たれる（部分的な剥奪はできない）。そのため既に持っている権限は
  * チェック済み・操作不可で示し、**持っていない権限だけ**選んで付与できるように
  * する。剥奪は全部を外す（P2-11）。減らしたいときは外してから必要な権限で付け直す。
+ *
+ * 「権限を外す」を押すと、そのキーは `bucket.keys` から消える（実機で確認済み。
+ * `DenyBucketKey` 後は `GetBucketInfo.keys` から該当エントリが無くなり、取り直しても
+ * 現れない）。付け直す経路が `bucket.keys` の上（このセクションの行）にしか無いと
+ * 行き止まりになるため、まだ権限を持っていないキーにも付与できる
+ * 「キーに権限を付与」を別に用意する（[GrantKeyDialog]）。
  */
 @Composable
 private fun KeySection(
     bucket: BucketInfo,
     onOpenKey: (String) -> Unit,
     onGrant: (BucketKey, BucketKeyPermissions) -> Unit,
+    onGranted: (String) -> Unit,
     onRevoke: (BucketKey) -> Unit,
 ) {
     var revoking by remember { mutableStateOf<BucketKey?>(null) }
+    var granting by remember { mutableStateOf(false) }
 
     BucketSection("アクセスキー") {
-        Text(
-            "権限を減らすことはできません。減らすには「権限を外す」を押してから付け直してください",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                "権限を減らすことはできません。減らすには「権限を外す」を押してください。" +
+                    "外すとこのキーは一覧から消えるので、付け直すには「キーに権限を付与」から選び直してください",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { granting = true }) { Text("キーに権限を付与") }
+        }
 
         if (bucket.keys.isEmpty()) {
             Text(
@@ -405,7 +437,8 @@ private fun KeySection(
     revoking?.let { key ->
         ConfirmDialog(
             title = "権限を外す",
-            message = "${key.name}（${key.accessKeyId}）から ${bucket.displayName} の権限をすべて外します。",
+            message = "${key.name}（${key.accessKeyId}）から ${bucket.displayName} の権限をすべて外します。" +
+                "外すとこのキーはこのバケットの一覧から消えます。付け直すには「キーに権限を付与」から選び直してください。",
             onDismiss = { revoking = null },
             onConfirm = {
                 revoking = null
@@ -413,6 +446,144 @@ private fun KeySection(
             },
         )
     }
+
+    if (granting) {
+        GrantKeyDialog(
+            bucketId = bucket.id,
+            excludedKeyIds = bucket.keys.map { it.accessKeyId }.toSet(),
+            onDismiss = { granting = false },
+            onGranted = { name ->
+                granting = false
+                onGranted(name)
+            },
+        )
+    }
+}
+
+/**
+ * まだこのバケットに権限を持っていないキーを選び、権限を付与する。
+ *
+ * `bucket.keys` に居ないキー（このバケットへの権限を一度も持ったことが無いキーだけ
+ * でなく、`KeySection` の「権限を外す」で消えたキーも含む）を `GET /api/keys` の
+ * 全件から選べるようにする。付与は既存の行の「権限を付与」と同じ grant-only の
+ * `PUT /api/buckets/{bucketId}/keys/{accessKeyId}`（P2-11）。
+ */
+@Composable
+private fun GrantKeyDialog(
+    bucketId: String,
+    excludedKeyIds: Set<String>,
+    onDismiss: () -> Unit,
+    onGranted: (String) -> Unit,
+) {
+    val session = LocalSession.current
+    val scope = rememberCoroutineScope()
+
+    var keys by remember { mutableStateOf<List<KeySummary>?>(null) }
+    var keysFailure by remember { mutableStateOf<ApiResult.Failure?>(null) }
+    var selectedKeyId by remember { mutableStateOf<String?>(null) }
+    var read by remember { mutableStateOf(false) }
+    var write by remember { mutableStateOf(false) }
+    var owner by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var sending by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        when (val result = session.api.getJson("/api/keys", ListSerializer(KeySummary.serializer()))) {
+            is ApiResult.Success -> keys = result.value
+            is ApiResult.Failure -> keysFailure = result
+            ApiResult.Unauthorized -> session.invalidate()
+        }
+    }
+
+    val available = keys?.filterNot { it.id in excludedKeyIds }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("バケットへのキーの権限付与") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                when {
+                    keysFailure != null -> ProblemView(keysFailure!!.problem, keysFailure!!.status)
+
+                    keys == null -> LoadingView()
+
+                    available.isNullOrEmpty() -> Text(
+                        "権限を付与できるキーがありません",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    else -> {
+                        Column(
+                            modifier = Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()),
+                        ) {
+                            available.forEach { key ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(
+                                        selected = selectedKeyId == key.id,
+                                        onClick = { selectedKeyId = key.id },
+                                    )
+                                    Text(key.name)
+                                }
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = read, onCheckedChange = { read = it })
+                            Text("read", style = MaterialTheme.typography.labelSmall)
+                            Checkbox(checked = write, onCheckedChange = { write = it })
+                            Text("write", style = MaterialTheme.typography.labelSmall)
+                            Checkbox(checked = owner, onCheckedChange = { owner = it })
+                            Text("owner", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+
+                error?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !sending && selectedKeyId != null && (read || write || owner),
+                onClick = {
+                    val keyId = selectedKeyId ?: return@TextButton
+                    val keyName = available?.firstOrNull { it.id == keyId }?.name ?: return@TextButton
+                    sending = true
+                    scope.launch {
+                        val body = AppJson.encodeToString(
+                            BucketKeyPermissionRequest.serializer(),
+                            BucketKeyPermissionRequest(
+                                BucketKeyPermissions(owner = owner, read = read, write = write),
+                            ),
+                        )
+
+                        when (
+                            val result = session.api.sendJson(
+                                HttpMethod.Put,
+                                "/api/buckets/$bucketId/keys/$keyId",
+                                body,
+                                BucketInfo.serializer(),
+                            )
+                        ) {
+                            is ApiResult.Success -> onGranted(keyName)
+
+                            is ApiResult.Failure -> {
+                                error = result.problem.displayMessage
+                                sending = false
+                            }
+
+                            ApiResult.Unauthorized -> session.invalidate()
+                        }
+                    }
+                },
+            ) {
+                Text("権限を付与")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
+    )
 }
 
 @Composable
