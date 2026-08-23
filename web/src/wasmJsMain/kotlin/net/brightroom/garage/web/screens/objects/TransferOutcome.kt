@@ -54,7 +54,7 @@ sealed interface TransferOutcome {
                     resolve('204 ' + file.name);
                     return;
                 }
-                response.text().then((body) => resolve(response.status + ' ' + body));
+                return response.text().then((body) => resolve(response.status + ' ' + body));
             }).catch((error) => resolve('0 ' + error));
         });
 

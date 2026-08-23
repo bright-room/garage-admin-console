@@ -1,5 +1,6 @@
 package net.brightroom.garage.web.screens.objects
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,6 +44,7 @@ import net.brightroom.garage.web.components.LoadingView
 import net.brightroom.garage.web.components.ProblemView
 import net.brightroom.garage.web.components.TableColumn
 import net.brightroom.garage.web.components.formatBytes
+import net.brightroom.garage.web.screens.buckets.Notice
 import net.brightroom.garage.web.session.LocalSession
 
 /**
@@ -63,7 +65,7 @@ fun ObjectBrowserScreen(
 
     var listing by remember(bucketId, prefix) { mutableStateOf<ObjectListing?>(null) }
     var failure by remember(bucketId, prefix) { mutableStateOf<ApiResult.Failure?>(null) }
-    var notice by remember(bucketId, prefix) { mutableStateOf<String?>(null) }
+    var notice by remember(bucketId, prefix) { mutableStateOf<Notice?>(null) }
     var deleting by remember(bucketId, prefix) { mutableStateOf<StoredObject?>(null) }
     var inspecting by remember(bucketId, prefix) { mutableStateOf<ObjectInspection?>(null) }
     var busy by remember(bucketId, prefix) { mutableStateOf(false) }
@@ -97,13 +99,13 @@ fun ObjectBrowserScreen(
     /**
      * 転送の結果を `ApiClient` と同じ基準で扱う。
      *
-     * @param reload 成功時に一覧を再読込するか。アップロード・削除は結果が一覧に
+     * @param reload 成功時に一覧を再読込するか。アップロードは結果が一覧に
      *   反映されるため再読込するが、ダウンロードは読み取り専用で一覧に影響しない。
      */
     fun handle(outcome: TransferOutcome, reload: Boolean = true, onDone: (String) -> String) {
         when (outcome) {
             is TransferOutcome.Done -> {
-                notice = onDone(outcome.fileName)
+                notice = Notice(onDone(outcome.fileName))
                 if (reload) scope.launch { load() }
             }
 
@@ -111,7 +113,7 @@ fun ObjectBrowserScreen(
 
             is TransferOutcome.Failed -> when (outcome.status) {
                 HttpStatusCode.Unauthorized.value -> session.invalidate()
-                else -> notice = problemMessage(outcome)
+                else -> notice = Notice(problemMessage(outcome), failed = true)
             }
         }
     }
@@ -153,7 +155,11 @@ fun ObjectBrowserScreen(
         Breadcrumbs(prefix, onNavigatePrefix)
 
         notice?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(
+                it.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (it.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            )
         }
 
         failure?.let { current ->
@@ -175,6 +181,7 @@ fun ObjectBrowserScreen(
 
             else -> ObjectTable(
                 listing = current,
+                busy = busy,
                 onOpenFolder = onNavigatePrefix,
                 onDownload = { obj ->
                     busy = true
@@ -191,7 +198,7 @@ fun ObjectBrowserScreen(
 
                         when (val result = session.api.getJson(path, ObjectInspection.serializer())) {
                             is ApiResult.Success -> inspecting = result.value
-                            is ApiResult.Failure -> notice = result.problem.displayMessage
+                            is ApiResult.Failure -> notice = Notice(result.problem.displayMessage, failed = true)
                             ApiResult.Unauthorized -> session.invalidate()
                         }
                     }
@@ -201,7 +208,16 @@ fun ObjectBrowserScreen(
         }
 
         current?.nextToken?.let { token ->
-            TextButton(onClick = { scope.launch { load(token) } }) { Text("続きを読み込む") }
+            TextButton(
+                enabled = !busy,
+                onClick = {
+                    busy = true
+                    scope.launch {
+                        load(token)
+                        busy = false
+                    }
+                },
+            ) { Text("続きを読み込む") }
         }
 
         current?.keyName?.let { key ->
@@ -225,11 +241,11 @@ fun ObjectBrowserScreen(
 
                     when (val result = session.api.sendEmpty(HttpMethod.Delete, path)) {
                         is ApiResult.Success -> {
-                            notice = "${target.key} を削除しました"
+                            notice = Notice("${target.key} を削除しました")
                             load()
                         }
 
-                        is ApiResult.Failure -> notice = result.problem.displayMessage
+                        is ApiResult.Failure -> notice = Notice(result.problem.displayMessage, failed = true)
 
                         ApiResult.Unauthorized -> session.invalidate()
                     }
@@ -247,6 +263,7 @@ fun ObjectBrowserScreen(
 @Composable
 private fun Breadcrumbs(prefix: String, onNavigate: (String) -> Unit) {
     Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -270,7 +287,7 @@ private fun Breadcrumbs(prefix: String, onNavigate: (String) -> Unit) {
 /**
  * S3 ブラウザだけが使えない状態を、理由に応じて出し分ける（spec §6.4）。
  *
- * 判断に使うのは HTTP のステータスと problem details の `type` である。
+ * 判断に使うのは problem details の `type` である。
  */
 @Composable
 private fun DegradedView(failure: ApiResult.Failure, onOpenBucket: () -> Unit, onRetry: () -> Unit) {
@@ -296,6 +313,7 @@ private fun DegradedView(failure: ApiResult.Failure, onOpenBucket: () -> Unit, o
 @Composable
 private fun ObjectTable(
     listing: ObjectListing,
+    busy: Boolean,
     onOpenFolder: (String) -> Unit,
     onDownload: (StoredObject) -> Unit,
     onInspect: (StoredObject) -> Unit,
@@ -340,7 +358,7 @@ private fun ObjectTable(
                     value = { "" },
                     content = { obj ->
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton(onClick = { onDownload(obj) }) { Text("取得") }
+                            TextButton(enabled = !busy, onClick = { onDownload(obj) }) { Text("取得") }
                             TextButton(onClick = { onInspect(obj) }) { Text("詳細") }
                             TextButton(onClick = { onDelete(obj) }) {
                                 Text("削除", color = MaterialTheme.colorScheme.error)
@@ -360,7 +378,10 @@ private fun InspectionDialog(inspection: ObjectInspection, onDismiss: () -> Unit
         onDismissRequest = onDismiss,
         title = { Text(inspection.key) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 if (inspection.versions.isEmpty()) {
                     Text("バージョンがありません")
                 }
