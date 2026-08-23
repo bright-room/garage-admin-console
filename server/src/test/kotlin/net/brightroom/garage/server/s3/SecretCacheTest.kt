@@ -72,6 +72,26 @@ class SecretCacheTest {
     }
 
     @Test
+    fun sweepExpiredDropsOnlyExpiredEntriesWithoutAnyGetOrPut() {
+        // CodeRabbit 指摘のシナリオ: 最後の put() 以降、誰も get()/put() を呼ばなければ
+        // 期限切れのエントリは自然には消えない。定期ジョブに相当する sweepExpired() を
+        // 直接呼んだときだけで掃かれることを確認する
+        val clock = FakeClock()
+        val cache = SecretCache(ttl = 5.minutes, now = { clock.now })
+
+        cache.put("hash-a", "b1", credentials) // t=0, expires t=5
+        clock.advance(3) // t=3
+        cache.put("hash-b", "b2", credentials) // t=3, expires t=8（hash-a はまだ期限内なので消えない）
+
+        clock.advance(3) // t=6: hash-a は期限切れ、hash-b はまだ有効。ここでは get()/put() を呼ばない
+        cache.sweepExpired()
+
+        assertEquals(1, cache.size)
+        assertNull(cache.get("hash-a", "b1"))
+        assertEquals(credentials, cache.get("hash-b", "b2"))
+    }
+
+    @Test
     fun purgeDropsEveryBucketOfThatToken() {
         val cache = SecretCache()
         cache.put("hash-a", "b1", credentials)

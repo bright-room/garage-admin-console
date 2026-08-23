@@ -40,12 +40,25 @@ class SecretCache(private val ttl: Duration = 5.minutes, private val now: () -> 
     }
 
     fun put(tokenHash: String, bucketId: String, credentials: S3Credentials) {
-        // 掃除する経路がここにしか無いため、先に期限切れを掃く。
-        // これを怠ると、平文の secret がプロセスが死ぬまでヒープに残りうる
+        // 配線（定期的な sweepExpired() 呼び出し）が外れていても最低限の掃除が残るよう、
+        // put() でも掃く
+        sweepExpired()
+
+        entries[cacheKey(tokenHash, bucketId)] = Entry(credentials, now().plus(ttl))
+    }
+
+    /**
+     * 期限切れのエントリを掃く。
+     *
+     * TTL はあくまで論理的な有効期限であり、それ自体はエントリを取り除かない。
+     * get()/put() は触られたキーしか掃かないため、最後の操作以降誰も cache に
+     * 触れなければ、期限切れの平文 secret がプロセス終了までヒープに残りかねない。
+     * アプリケーションのライフサイクルに紐づく定期ジョブなど、外部から能動的に
+     * 呼び出すことを想定する。
+     */
+    fun sweepExpired() {
         val nowInstant = now()
         entries.values.removeAll { it.expiresAt <= nowInstant }
-
-        entries[cacheKey(tokenHash, bucketId)] = Entry(credentials, nowInstant.plus(ttl))
     }
 
     /** ログアウト時にそのトークン配下をすべて捨てる（spec §6.6）。 */
