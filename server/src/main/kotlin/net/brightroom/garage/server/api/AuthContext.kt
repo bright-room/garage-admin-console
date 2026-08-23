@@ -15,13 +15,22 @@ class MissingTokenException : RuntimeException("Authorization ヘッダに Beare
 /**
  * RFC 9457 の定める `application/problem+json` で返す。
  *
- * `type` は省略するため、`title` にはその status の推奨理由句を使う。
+ * [type] を省略した場合は `about:blank` とみなされ、[title] にはその status の
+ * 推奨理由句を使う。コンソール固有の問題型（`ProblemTypes`）を返すときだけ
+ * [type] と [title] を明示する。
  */
-suspend fun ApplicationCall.respondProblem(status: HttpStatusCode, detail: String? = null, operation: String? = null) {
+suspend fun ApplicationCall.respondProblem(
+    status: HttpStatusCode,
+    detail: String? = null,
+    operation: String? = null,
+    type: String? = null,
+    title: String = status.description,
+) {
     val problem = ProblemDetails(
-        title = status.description,
+        title = title,
         status = status.value,
         detail = detail,
+        type = type,
         instance = request.path(),
         operation = operation,
     )
@@ -63,3 +72,6 @@ fun ApplicationCall.pathParam(name: String): String = parameters[name]?.takeIf {
 /** クエリパラメータを取り出す。 */
 fun ApplicationCall.queryParam(name: String): String = request.queryParameters[name]?.takeIf { it.isNotBlank() }
     ?: throw InvalidRequestException("クエリに $name が必要です")
+
+/** アップロードに `Content-Length` が無い。S3 の PutObject は長さを要求する。 */
+class MissingContentLengthException : RuntimeException("Content-Length ヘッダが必要です")

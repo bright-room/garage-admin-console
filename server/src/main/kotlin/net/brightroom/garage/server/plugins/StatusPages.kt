@@ -1,5 +1,7 @@
 package net.brightroom.garage.server.plugins
 
+import aws.sdk.kotlin.services.s3.model.NoSuchKey
+import aws.sdk.kotlin.services.s3.model.S3Exception
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -10,9 +12,13 @@ import io.ktor.server.plugins.NotFoundException
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.path
 import net.brightroom.garage.server.api.InvalidRequestException
+import net.brightroom.garage.server.api.MissingContentLengthException
 import net.brightroom.garage.server.api.MissingTokenException
 import net.brightroom.garage.server.api.respondProblem
 import net.brightroom.garage.server.garage.GarageException
+import net.brightroom.garage.server.s3.BucketNotAddressableException
+import net.brightroom.garage.server.s3.NoUsableKeyException
+import net.brightroom.garage.shared.api.ProblemTypes
 
 /**
  * すべてのエラーを RFC 9457 の problem details に正規化する。
@@ -55,6 +61,45 @@ fun Application.configureStatusPages() {
             call.respondProblem(
                 status = HttpStatusCode.UnsupportedMediaType,
                 detail = "リクエストの Content-Type が application/json ではありません",
+            )
+        }
+
+        // S3 ブラウザだけが縮退する 2 つ。web が案内を出し分けられるよう型を付ける
+        exception<NoUsableKeyException> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.Conflict,
+                detail = cause.message,
+                type = ProblemTypes.NO_USABLE_KEY,
+                title = "利用できるアクセスキーがありません",
+            )
+        }
+
+        exception<BucketNotAddressableException> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.Conflict,
+                detail = cause.message,
+                type = ProblemTypes.BUCKET_NOT_ADDRESSABLE,
+                title = "S3 でアドレスできないバケットです",
+            )
+        }
+
+        exception<MissingContentLengthException> { call, cause ->
+            call.respondProblem(status = HttpStatusCode.LengthRequired, detail = cause.message)
+        }
+
+        exception<NoSuchKey> { call, _ ->
+            call.respondProblem(
+                status = HttpStatusCode.NotFound,
+                detail = "オブジェクトが見つかりません",
+            )
+        }
+
+        // S3 側の失敗。SDK のメッセージは外に出さない（資格情報や内部の詳細を含みうる）
+        exception<S3Exception> { call, cause ->
+            call.application.log.error("S3 request failed at ${call.request.path()}", cause)
+            call.respondProblem(
+                status = HttpStatusCode.BadGateway,
+                detail = "ストレージへのアクセスに失敗しました",
             )
         }
 
