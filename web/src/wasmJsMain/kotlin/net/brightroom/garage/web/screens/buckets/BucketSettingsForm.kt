@@ -245,7 +245,7 @@ private fun CorsForm(bucket: BucketInfo, onSave: (UpdateBucketRequest) -> Unit) 
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                TextButton(onClick = { drafts.removeAt(index) }) { Text("このルールを削除") }
+                TextButton(onClick = { drafts.remove(draft) }) { Text("このルールを削除") }
             }
         }
 
@@ -396,7 +396,7 @@ private fun LifecycleForm(bucket: BucketInfo, onSave: (UpdateBucketRequest) -> U
                     singleLine = true,
                 )
 
-                TextButton(onClick = { drafts.removeAt(index) }) { Text("このルールを削除") }
+                TextButton(onClick = { drafts.remove(draft) }) { Text("このルールを削除") }
             }
         }
 

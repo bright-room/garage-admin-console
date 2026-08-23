@@ -93,7 +93,7 @@ private fun AuthenticatedApp(router: RouterState) {
                 bucketId = route.id,
                 onOpenObjects = { router.navigate(Route.Objects(it)) },
                 onOpenKey = { router.navigate(Route.KeyDetail(it)) },
-                onDeleted = { router.navigate(Route.Buckets) },
+                onDeleted = { router.replace(Route.Buckets) },
             )
 
             Route.Keys -> KeysScreen(onOpen = { router.navigate(Route.KeyDetail(it)) })
@@ -101,7 +101,7 @@ private fun AuthenticatedApp(router: RouterState) {
             is Route.KeyDetail -> KeyDetailScreen(
                 keyId = route.id,
                 onOpenBucket = { router.navigate(Route.BucketDetail(it)) },
-                onDeleted = { router.navigate(Route.Keys) },
+                onDeleted = { router.replace(Route.Keys) },
             )
 
             // Task 17 以降で差し替える

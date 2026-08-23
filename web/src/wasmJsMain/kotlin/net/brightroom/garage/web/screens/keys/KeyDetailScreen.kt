@@ -52,6 +52,7 @@ fun KeyDetailScreen(keyId: String, onOpenBucket: (String) -> Unit, onDeleted: ()
     var notice by remember(keyId) { mutableStateOf<Notice?>(null) }
     var secret by remember(keyId) { mutableStateOf<String?>(null) }
     var deleting by remember(keyId) { mutableStateOf(false) }
+    var saving by remember(keyId) { mutableStateOf(false) }
 
     suspend fun load(showSecret: Boolean = false) {
         val path = if (showSecret) "/api/keys/$keyId?showSecret=true" else "/api/keys/$keyId"
@@ -143,7 +144,9 @@ fun KeyDetailScreen(keyId: String, onOpenBucket: (String) -> Unit, onDeleted: ()
 
         SettingsSection(
             key = current,
+            saving = saving,
             onSave = { request ->
+                saving = true
                 scope.launch {
                     val body = AppJson.encodeToString(UpdateKeyRequest.serializer(), request)
 
@@ -164,6 +167,7 @@ fun KeyDetailScreen(keyId: String, onOpenBucket: (String) -> Unit, onDeleted: ()
 
                         ApiResult.Unauthorized -> session.invalidate()
                     }
+                    saving = false
                 }
             },
         )
@@ -233,7 +237,7 @@ fun KeyDetailScreen(keyId: String, onOpenBucket: (String) -> Unit, onDeleted: ()
 }
 
 @Composable
-private fun SettingsSection(key: KeyInfo, onSave: (UpdateKeyRequest) -> Unit) {
+private fun SettingsSection(key: KeyInfo, saving: Boolean, onSave: (UpdateKeyRequest) -> Unit) {
     var name by remember(key.name) { mutableStateOf(key.name) }
     var allowCreateBucket by remember(key.permissions.createBucket) { mutableStateOf(key.permissions.createBucket) }
 
@@ -251,7 +255,7 @@ private fun SettingsSection(key: KeyInfo, onSave: (UpdateKeyRequest) -> Unit) {
         }
 
         Button(
-            enabled = name != key.name || allowCreateBucket != key.permissions.createBucket,
+            enabled = !saving && (name != key.name || allowCreateBucket != key.permissions.createBucket),
             onClick = {
                 onSave(
                     UpdateKeyRequest(

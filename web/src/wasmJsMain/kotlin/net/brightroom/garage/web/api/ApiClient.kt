@@ -17,6 +17,7 @@ import io.ktor.http.isSuccess
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.Json
 import net.brightroom.garage.shared.api.ProblemDetails
+import kotlin.coroutines.cancellation.CancellationException
 
 val AppJson: Json = Json {
     ignoreUnknownKeys = true
@@ -67,7 +68,10 @@ class ApiClient(private val tokenProvider: () -> String?) {
         }
     }.fold(
         onSuccess = { it.toResult { body -> body } },
-        onFailure = { ApiResult.Failure(HttpStatusCode.ServiceUnavailable, networkProblem(it)) },
+        onFailure = {
+            if (it is CancellationException) throw it
+            ApiResult.Failure(HttpStatusCode.ServiceUnavailable, networkProblem(it))
+        },
     )
 
     private fun HttpRequestBuilder.authorize() {
