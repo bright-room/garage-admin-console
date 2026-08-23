@@ -12,7 +12,6 @@ import net.brightroom.garage.shared.api.toSession
 
 fun Route.sessionRoutes(client: GarageAdminClient) {
     route("/session") {
-
         get {
             val token = client.requireValidToken(call.adminToken())
 

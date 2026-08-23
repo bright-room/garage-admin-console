@@ -85,6 +85,7 @@ fun OverviewScreen() {
             }
 
             is ApiResult.Failure -> error = result.problem.displayMessage
+
             // トークンが失効した。ログイン画面に戻す
             ApiResult.Unauthorized -> session.invalidate()
         }
@@ -192,6 +193,7 @@ private fun KeyFigures(overview: Overview) {
                 )
 
                 is Section.Denied -> DeniedView(nodes.operation)
+
                 is Section.Failed -> Text(nodes.message, style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -208,6 +210,7 @@ private fun KeyFigures(overview: Overview) {
                 }
 
                 is Section.Denied -> DeniedView(health.operation)
+
                 is Section.Failed -> Text(health.message, style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -227,6 +230,7 @@ private fun KeyFigures(overview: Overview) {
                 }
 
                 is Section.Denied -> DeniedView(storage.operation)
+
                 is Section.Failed -> Text(storage.message, style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -247,6 +251,7 @@ private fun KeyFigures(overview: Overview) {
                 }
 
                 is Section.Denied -> DeniedView(layout.operation)
+
                 is Section.Failed -> Text(layout.message, style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -281,7 +286,9 @@ private fun NodeList(section: Section<List<NodeSummary>>) {
 
             when (section) {
                 is Section.Denied -> DeniedView(section.operation)
+
                 is Section.Failed -> Text(section.message, style = MaterialTheme.typography.bodySmall)
+
                 is Section.Loaded ->
                     if (section.data.isEmpty()) {
                         Text(

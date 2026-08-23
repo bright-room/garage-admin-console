@@ -27,10 +27,7 @@ import net.brightroom.garage.server.plugins.GarageJson
  * トークンはインスタンスではなく呼び出しごとに受け取る。サーバーは利用者の
  * admin token を保持しないため、インスタンスに持たせてはならない。
  */
-class GarageAdminClient(
-    private val endpoint: String,
-    engine: HttpClientEngine = CIO.create(),
-) {
+class GarageAdminClient(private val endpoint: String, engine: HttpClientEngine = CIO.create()) {
     private val client = HttpClient(engine) {
         install(ContentNegotiation) {
             json(GarageJson)
@@ -38,14 +35,11 @@ class GarageAdminClient(
         expectSuccess = false
     }
 
-    suspend fun get(
-        token: String,
-        operation: String,
-        params: Map<String, String> = emptyMap(),
-    ): HttpResponse = client.get("$endpoint/v2/$operation") {
-        header(HttpHeaders.Authorization, "Bearer $token")
-        params.forEach { (key, value) -> parameter(key, value) }
-    }
+    suspend fun get(token: String, operation: String, params: Map<String, String> = emptyMap()): HttpResponse =
+        client.get("$endpoint/v2/$operation") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            params.forEach { (key, value) -> parameter(key, value) }
+        }
 
     suspend fun post(
         token: String,
@@ -79,8 +73,7 @@ suspend fun HttpResponse.requireSuccess(operation: String): HttpResponse {
 }
 
 /** 成功を確認したうえで本文を [T] にデシリアライズする。 */
-suspend inline fun <reified T> HttpResponse.garageBody(operation: String): T =
-    requireSuccess(operation).body()
+suspend inline fun <reified T> HttpResponse.garageBody(operation: String): T = requireSuccess(operation).body()
 
 /**
  * serializer を明示して本文をデシリアライズする。
@@ -88,10 +81,7 @@ suspend inline fun <reified T> HttpResponse.garageBody(operation: String): T =
  * `MultiResponse<List<BlockError>>` のようなジェネリック型は `reified` で解決できないため、
  * そうした場合はこちらを使う。
  */
-suspend fun <T> HttpResponse.garageBodyWith(
-    operation: String,
-    deserializer: DeserializationStrategy<T>,
-): T {
+suspend fun <T> HttpResponse.garageBodyWith(operation: String, deserializer: DeserializationStrategy<T>): T {
     val text = requireSuccess(operation).bodyAsText()
     return GarageJson.decodeFromString(deserializer, text)
 }

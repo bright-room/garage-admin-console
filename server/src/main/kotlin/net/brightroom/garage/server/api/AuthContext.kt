@@ -17,11 +17,7 @@ class MissingTokenException : RuntimeException("Authorization ヘッダに Beare
  *
  * `type` は省略するため、`title` にはその status の推奨理由句を使う。
  */
-suspend fun ApplicationCall.respondProblem(
-    status: HttpStatusCode,
-    detail: String? = null,
-    operation: String? = null,
-) {
+suspend fun ApplicationCall.respondProblem(status: HttpStatusCode, detail: String? = null, operation: String? = null) {
     val problem = ProblemDetails(
         title = status.description,
         status = status.value,

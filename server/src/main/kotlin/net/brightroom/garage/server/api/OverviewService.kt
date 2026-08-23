@@ -95,16 +95,15 @@ class OverviewService(private val client: GarageAdminClient) {
      * 403 は正常系として [Section.Denied] に、その他の失敗は [Section.Failed] に落とす。
      * 401 だけは概況全体を無意味にするため再スローする。
      */
-    private suspend fun <T> section(block: suspend () -> T): Section<T> =
-        try {
-            Section.Loaded(block())
-        } catch (e: GarageException) {
-            when (e.status) {
-                HttpStatusCode.Unauthorized -> throw e
-                HttpStatusCode.Forbidden -> Section.Denied(e.operation)
-                else -> Section.Failed(e.message)
-            }
+    private suspend fun <T> section(block: suspend () -> T): Section<T> = try {
+        Section.Loaded(block())
+    } catch (e: GarageException) {
+        when (e.status) {
+            HttpStatusCode.Unauthorized -> throw e
+            HttpStatusCode.Forbidden -> Section.Denied(e.operation)
+            else -> Section.Failed(e.message)
         }
+    }
 
     private companion object {
         const val HEALTH = "GetClusterHealth"

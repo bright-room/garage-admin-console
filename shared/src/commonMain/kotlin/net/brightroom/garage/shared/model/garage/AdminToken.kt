@@ -1,7 +1,7 @@
 package net.brightroom.garage.shared.model.garage
 
-import kotlin.time.Instant
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 /** `GetCurrentAdminTokenInfo` および `GetAdminTokenInfo` のレスポンス。 */
 @Serializable

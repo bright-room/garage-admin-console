@@ -9,11 +9,7 @@ import kotlinx.serialization.Serializable
  * リクエストごとに転送されるため、サーバーは保持しない。
  */
 @Serializable
-data class AppConfig(
-    val admin: Admin,
-) {
+data class AppConfig(val admin: Admin) {
     @Serializable
-    data class Admin(
-        val endpoint: String,
-    )
+    data class Admin(val endpoint: String)
 }
