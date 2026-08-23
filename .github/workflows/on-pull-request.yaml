@@ -93,27 +93,17 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: e2e/package-lock.json
 
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
-
-      - name: Install E2E dependencies
-        working-directory: e2e
-        run: npm ci
-
-      # --with-deps は付けない。chromium の共有ライブラリは ubuntu-latest に
+      # キャッシュは張らない。ブラウザ取得は 9 秒で、復元 5 秒 + 保存 4 秒を
+      # 払うと新規 PR では逆に遅くなる（実測）。依存は 1 つで npm ci も 1 秒。
+      # --with-deps も付けない。chromium の共有ライブラリは ubuntu-latest に
       # 揃っており、apt-get に 17 秒かかるだけで得るものが無い。
       # ランナーイメージの変更でブラウザが起動しなくなったら付け直すこと。
-      - name: Install Playwright browser
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - name: Install E2E dependencies
         working-directory: e2e
-        run: npx playwright install chromium
+        run: |
+          npm ci
+          npx playwright install chromium
 
       - name: Run E2E tests
         working-directory: e2e
