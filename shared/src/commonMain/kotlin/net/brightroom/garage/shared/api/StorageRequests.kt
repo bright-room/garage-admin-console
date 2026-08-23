@@ -86,7 +86,11 @@ data class ImportKeyRequest(
     val name: String,
     val accessKeyId: String,
     val secretAccessKey: String,
-)
+) {
+    /** secret をログに出さない。`equals` / `hashCode` は既定のままでよい。 */
+    override fun toString(): String =
+        "ImportKeyRequest(name=$name, accessKeyId=$accessKeyId, secretAccessKey=<redacted>)"
+}
 
 /**
  * キーの更新。

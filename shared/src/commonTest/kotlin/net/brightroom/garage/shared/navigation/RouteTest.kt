@@ -90,6 +90,8 @@ class RouteTest {
             Route.Objects("b1"),
             Route.Objects("b1", "logs/2026/"),
             Route.Objects("b1", "日本語 フォルダ/"),
+            Route.Objects("b1", "a&b=c/"),
+            Route.Objects("b1", "a#b/"),
         ).forEach { route ->
             assertEquals(route, Route.parse(route.path))
         }

@@ -45,7 +45,11 @@ data class BucketInfo(
     val corsRules: List<CorsRule>? = null,
     val lifecycleRules: List<LifecycleRule>? = null,
 ) {
-    val displayName: String get() = globalAliases.firstOrNull() ?: id.take(12)
+    /** 画面に出す名前。alias が無いバケットは ID の先頭で代用する。 */
+    val displayName: String
+        get() = globalAliases.firstOrNull()
+            ?: keys.firstNotNullOfOrNull { it.bucketLocalAliases.firstOrNull() }
+            ?: id.take(12)
 }
 
 /** そのバケットに権限を持つアクセスキー。 */

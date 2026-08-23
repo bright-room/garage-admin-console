@@ -29,7 +29,12 @@ data class KeyInfo(
     val created: Instant? = null,
     val expiration: Instant? = null,
     val secretAccessKey: String? = null,
-)
+) {
+    /** secret をログに出さない。`equals` / `hashCode` は既定のままでよい。 */
+    override fun toString(): String =
+        "KeyInfo(accessKeyId=$accessKeyId, name=$name, expired=$expired, " +
+            "secretAccessKey=${if (secretAccessKey == null) "null" else "<redacted>"})"
+}
 
 @Serializable
 data class KeyPermissions(

@@ -50,4 +50,11 @@ class StorageRequestsTest {
 
         assertTrue(encoded.contains("\"AllowedOrigin\":[\"*\"]"))
     }
+
+    @Test
+    fun importKeyRequestToStringRedactsSecret() {
+        val request = ImportKeyRequest(name = "dev-key", accessKeyId = "GK01", secretAccessKey = "s3cr3t")
+
+        assertFalse(request.toString().contains("s3cr3t"))
+    }
 }

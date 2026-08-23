@@ -28,6 +28,26 @@ class BucketTest {
     }
 
     @Test
+    fun bucketSummaryDisplayNameFallsBackToLocalAlias() {
+        val buckets = json.decodeFromString(
+            ListSerializer(BucketSummary.serializer()),
+            """[{"id":"4a8ee3738eaa9c1d2e3f4a5b","localAliases":[{"accessKeyId":"GK01","alias":"mine"}]}]""",
+        )
+
+        assertEquals("mine", buckets.first().displayName)
+    }
+
+    @Test
+    fun bucketSummaryDisplayNameFallsBackToIdWhenNoAlias() {
+        val buckets = json.decodeFromString(
+            ListSerializer(BucketSummary.serializer()),
+            """[{"id":"4a8ee3738eaa9c1d2e3f4a5b"}]""",
+        )
+
+        assertEquals("4a8ee3738eaa", buckets.first().displayName)
+    }
+
+    @Test
     fun decodesBucketInfo() {
         val info = json.decodeFromString<BucketInfo>(
             """
@@ -47,6 +67,36 @@ class BucketTest {
         assertNull(info.quotas.maxObjects)
         assertNull(info.corsRules)
         assertNull(info.websiteConfig)
+    }
+
+    @Test
+    fun bucketInfoDisplayNameFallsBackToLocalAlias() {
+        val info = json.decodeFromString<BucketInfo>(
+            """
+            {"id":"4a8ee3738eaa9c1d2e3f4a5b","globalAliases":[],"websiteAccess":false,
+             "keys":[{"accessKeyId":"GK01","name":"dev-key","bucketLocalAliases":["mine"],
+                      "permissions":{"owner":true,"read":true,"write":true}}],
+             "objects":0,"bytes":0,"unfinishedUploads":0,"unfinishedMultipartUploads":0,
+             "unfinishedMultipartUploadParts":0,"unfinishedMultipartUploadBytes":0,
+             "quotas":{}}
+            """.trimIndent(),
+        )
+
+        assertEquals("mine", info.displayName)
+    }
+
+    @Test
+    fun bucketInfoDisplayNameFallsBackToIdWhenNoAlias() {
+        val info = json.decodeFromString<BucketInfo>(
+            """
+            {"id":"4a8ee3738eaa9c1d2e3f4a5b","globalAliases":[],"websiteAccess":false,
+             "keys":[],"objects":0,"bytes":0,"unfinishedUploads":0,"unfinishedMultipartUploads":0,
+             "unfinishedMultipartUploadParts":0,"unfinishedMultipartUploadBytes":0,
+             "quotas":{}}
+            """.trimIndent(),
+        )
+
+        assertEquals("4a8ee3738eaa", info.displayName)
     }
 
     @Test
