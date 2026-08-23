@@ -20,6 +20,8 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # キャッシュを書く側なので、失効後は必ずコールドで走る。on-pull-request の
+    # build と同じ理由で余裕を残す。
     timeout-minutes: 15
     permissions:
       contents: read

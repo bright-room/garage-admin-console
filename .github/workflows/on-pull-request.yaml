@@ -12,6 +12,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 温まった状態で 3 分半。キャッシュが失効すると依存 350MB と Gradle 本体
+    # 149MB の取得が加わるため、コールドを見込んで余裕を残す。
     timeout-minutes: 15
     permissions:
       contents: read
@@ -39,7 +41,9 @@ jobs:
   e2e:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 実測 1 分 10 秒。Garage の起動待ちとブラウザ取得のぶれを見込んでも
+    # 10 分に届かない。ハングを早く落とす。
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
