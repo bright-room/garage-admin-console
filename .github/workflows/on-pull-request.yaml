@@ -5,23 +5,11 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Build and Test
-        uses: ./.github/actions/gradle-action
-        with:
-          command: server:check shared:jvmTest
-
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -33,10 +21,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build Fat JAR
+      # lint・テスト・fat JAR を一度の Gradle 実行にまとめる。
+      # :server:processResources が :web:wasmJsBrowserDistribution に依存するため、
+      # ジョブを分けると約 95 秒の wasm 本番ビルドが二重に走る。
+      - name: Check and Build
         uses: ./.github/actions/gradle-action
         with:
-          command: server:buildFatJar
+          command: spotlessCheck server:check shared:jvmTest server:buildFatJar
 
       - name: Upload Fat JAR
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -102,12 +93,31 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
 
       - name: Install E2E dependencies
         working-directory: e2e
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
+        run: npm ci
+
+      # ブラウザ本体はキャッシュから戻る。OS 側の共有ライブラリはランナーに
+      # 残らないため、キャッシュヒット時も install-deps だけは毎回必要。
+      - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: e2e
+        run: npx playwright install-deps chromium
 
       - name: Run E2E tests
         working-directory: e2e
@@ -116,7 +126,7 @@ jobs:
         run: npx playwright test
 
       - name: Upload test results
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-report

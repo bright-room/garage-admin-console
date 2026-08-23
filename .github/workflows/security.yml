@@ -17,6 +17,7 @@ jobs:
   # 多エコシステム SCA(lockfile を再帰自動検出。リポ直下の osv-scanner.toml は自動適用)
   sca:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:

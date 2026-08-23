@@ -1,4 +1,10 @@
-name: Seed Cache
+# 役割は 2 つある。
+#  1. マージ後の main を検証する（他に main をビルドするワークフローは無い）
+#  2. Gradle キャッシュを書く。PR ジョブは cache-read-only で、GitHub の
+#     キャッシュはデフォルトブランチのものしか横断参照できないため、
+#     このワークフローが無いと全 PR が常にコールドで走る。
+# コマンドは on-pull-request と揃える。揃えないと PR 側が温まらない。
+name: on-merge
 
 on:
   push:
@@ -7,8 +13,12 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  seed-cache:
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -19,7 +29,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build and Test
+      - name: Check and Build
         uses: ./.github/actions/gradle-action
         with:
-          command: server:check shared:jvmTest
+          command: spotlessCheck server:check shared:jvmTest server:buildFatJar
