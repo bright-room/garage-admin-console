@@ -132,6 +132,31 @@ class KeyRoutesTest {
     }
 
     @Test
+    fun createsKeyWithExplicitExpiration() = testApplication {
+        var sentBody = ""
+        var operation = ""
+        garageApp(
+            MockEngine { request ->
+                sentBody = (request.body as? TextContent)?.text.orEmpty()
+                operation = request.url.encodedPath.substringAfterLast('/')
+                respond(keyInfoBody, HttpStatusCode.OK, jsonHeaders)
+            },
+        )
+
+        client.post("/api/keys") {
+            header(HttpHeaders.Authorization, "Bearer tok")
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"ci","expiration":"2027-01-01T00:00:00Z"}""")
+        }
+
+        assertEquals("CreateKey", operation)
+        val sent = json.decodeFromString<JsonObject>(sentBody)
+        // RFC 3339 のまま Garage に渡ること
+        assertEquals("2027-01-01T00:00:00Z", sent["expiration"]?.toString()?.trim('"'))
+        assertNull(sent["neverExpires"])
+    }
+
+    @Test
     fun importsKey() = testApplication {
         var sentBody = ""
         var operation = ""
@@ -178,6 +203,30 @@ class KeyRoutesTest {
         val sent = json.decodeFromString<JsonObject>(sentBody)
         assertTrue(sent["deny"].toString().contains("\"createBucket\":true"))
         assertNull(sent["allow"])
+    }
+
+    @Test
+    fun updatesKeyToNeverExpire() = testApplication {
+        var sentBody = ""
+        var operation = ""
+        garageApp(
+            MockEngine { request ->
+                sentBody = (request.body as? TextContent)?.text.orEmpty()
+                operation = request.url.encodedPath.substringAfterLast('/')
+                respond(keyInfoBody, HttpStatusCode.OK, jsonHeaders)
+            },
+        )
+
+        client.patch("/api/keys/GK01") {
+            header(HttpHeaders.Authorization, "Bearer tok")
+            contentType(ContentType.Application.Json)
+            setBody("""{"neverExpires":true}""")
+        }
+
+        assertEquals("UpdateKey", operation)
+        val sent = json.decodeFromString<JsonObject>(sentBody)
+        assertEquals("true", sent["neverExpires"]?.toString())
+        assertNull(sent["expiration"])
     }
 
     @Test
