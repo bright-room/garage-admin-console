@@ -20,7 +20,7 @@ private fun writeToClipboard(value: String): Unit = js("navigator.clipboard.writ
 
 @Composable
 fun CopyButton(value: String, label: String = "コピー") {
-    var copied by remember { mutableStateOf(false) }
+    var copied by remember(value) { mutableStateOf(false) }
 
     TextButton(
         onClick = {
