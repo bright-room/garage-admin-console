@@ -22,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.ktor.http.HttpMethod
 import kotlinx.coroutines.launch
@@ -39,8 +40,8 @@ import net.brightroom.garage.web.components.CopyButton
 import net.brightroom.garage.web.components.DataTable
 import net.brightroom.garage.web.components.LoadingView
 import net.brightroom.garage.web.components.ProblemView
+import net.brightroom.garage.web.components.TableColumn
 import net.brightroom.garage.web.session.LocalSession
-import net.brightroom.garage.web.components.Column as TableColumn
 
 @Composable
 fun KeysScreen(onOpen: (String) -> Unit) {
@@ -96,7 +97,6 @@ fun KeysScreen(onOpen: (String) -> Unit) {
                 items = current,
                 onRowClick = { onOpen(it.id) },
                 emptyMessage = "アクセスキーがありません",
-                searchPlaceholder = "名前や ID で絞り込み",
                 columns = listOf(
                     TableColumn(title = "名前", weight = 2f, value = { it.name }),
                     TableColumn(title = "ID", weight = 2f, value = { it.id }),
@@ -159,6 +159,7 @@ private fun CreateKeyDialog(onDismiss: () -> Unit, onCreated: (KeyInfo) -> Unit)
     var name by remember { mutableStateOf("") }
     var allowCreateBucket by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var sending by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -182,8 +183,9 @@ private fun CreateKeyDialog(onDismiss: () -> Unit, onCreated: (KeyInfo) -> Unit)
         },
         confirmButton = {
             TextButton(
-                enabled = name.isNotBlank(),
+                enabled = !sending && name.isNotBlank(),
                 onClick = {
+                    sending = true
                     scope.launch {
                         val body = AppJson.encodeToString(
                             CreateKeyRequest.serializer(),
@@ -199,7 +201,12 @@ private fun CreateKeyDialog(onDismiss: () -> Unit, onCreated: (KeyInfo) -> Unit)
                             )
                         ) {
                             is ApiResult.Success -> onCreated(result.value)
-                            is ApiResult.Failure -> error = result.problem.displayMessage
+
+                            is ApiResult.Failure -> {
+                                error = result.problem.displayMessage
+                                sending = false
+                            }
+
                             ApiResult.Unauthorized -> session.invalidate()
                         }
                     }
@@ -221,6 +228,7 @@ private fun ImportKeyDialog(onDismiss: () -> Unit, onImported: () -> Unit) {
     var accessKeyId by remember { mutableStateOf("") }
     var secret by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var sending by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -249,6 +257,7 @@ private fun ImportKeyDialog(onDismiss: () -> Unit, onImported: () -> Unit) {
                     onValueChange = { secret = it },
                     label = { Text("シークレットアクセスキー") },
                     singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
                 )
                 error?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -257,8 +266,9 @@ private fun ImportKeyDialog(onDismiss: () -> Unit, onImported: () -> Unit) {
         },
         confirmButton = {
             TextButton(
-                enabled = name.isNotBlank() && accessKeyId.isNotBlank() && secret.isNotBlank(),
+                enabled = !sending && name.isNotBlank() && accessKeyId.isNotBlank() && secret.isNotBlank(),
                 onClick = {
+                    sending = true
                     scope.launch {
                         val body = AppJson.encodeToString(
                             ImportKeyRequest.serializer(),
@@ -274,7 +284,12 @@ private fun ImportKeyDialog(onDismiss: () -> Unit, onImported: () -> Unit) {
                             )
                         ) {
                             is ApiResult.Success -> onImported()
-                            is ApiResult.Failure -> error = result.problem.displayMessage
+
+                            is ApiResult.Failure -> {
+                                error = result.problem.displayMessage
+                                sending = false
+                            }
+
                             ApiResult.Unauthorized -> session.invalidate()
                         }
                     }

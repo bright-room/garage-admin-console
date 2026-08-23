@@ -39,6 +39,7 @@ import net.brightroom.garage.web.components.ConfirmDialog
 import net.brightroom.garage.web.components.CopyButton
 import net.brightroom.garage.web.components.LoadingView
 import net.brightroom.garage.web.components.ProblemView
+import net.brightroom.garage.web.screens.buckets.Notice
 import net.brightroom.garage.web.session.LocalSession
 
 @Composable
@@ -48,7 +49,7 @@ fun KeyDetailScreen(keyId: String, onOpenBucket: (String) -> Unit, onDeleted: ()
 
     var key by remember(keyId) { mutableStateOf<KeyInfo?>(null) }
     var failure by remember(keyId) { mutableStateOf<ApiResult.Failure?>(null) }
-    var notice by remember(keyId) { mutableStateOf<String?>(null) }
+    var notice by remember(keyId) { mutableStateOf<Notice?>(null) }
     var secret by remember(keyId) { mutableStateOf<String?>(null) }
     var deleting by remember(keyId) { mutableStateOf(false) }
 
@@ -91,7 +92,11 @@ fun KeyDetailScreen(keyId: String, onOpenBucket: (String) -> Unit, onDeleted: ()
 
         failure?.let { ProblemView(it.problem, it.status, onRetry = { scope.launch { load() } }) }
         notice?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(
+                it.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (it.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            )
         }
 
         if (current == null) {
@@ -151,11 +156,11 @@ fun KeyDetailScreen(keyId: String, onOpenBucket: (String) -> Unit, onDeleted: ()
                         )
                     ) {
                         is ApiResult.Success -> {
-                            notice = "設定を保存しました"
+                            notice = Notice("設定を保存しました")
                             load()
                         }
 
-                        is ApiResult.Failure -> notice = result.problem.displayMessage
+                        is ApiResult.Failure -> notice = Notice(result.problem.displayMessage, failed = true)
 
                         ApiResult.Unauthorized -> session.invalidate()
                     }
@@ -218,7 +223,7 @@ fun KeyDetailScreen(keyId: String, onOpenBucket: (String) -> Unit, onDeleted: ()
                 scope.launch {
                     when (val result = session.api.sendEmpty(HttpMethod.Delete, "/api/keys/$keyId")) {
                         is ApiResult.Success -> onDeleted()
-                        is ApiResult.Failure -> notice = result.problem.displayMessage
+                        is ApiResult.Failure -> notice = Notice(result.problem.displayMessage, failed = true)
                         ApiResult.Unauthorized -> session.invalidate()
                     }
                 }
@@ -229,8 +234,8 @@ fun KeyDetailScreen(keyId: String, onOpenBucket: (String) -> Unit, onDeleted: ()
 
 @Composable
 private fun SettingsSection(key: KeyInfo, onSave: (UpdateKeyRequest) -> Unit) {
-    var name by remember(key) { mutableStateOf(key.name) }
-    var allowCreateBucket by remember(key) { mutableStateOf(key.permissions.createBucket) }
+    var name by remember(key.name) { mutableStateOf(key.name) }
+    var allowCreateBucket by remember(key.permissions.createBucket) { mutableStateOf(key.permissions.createBucket) }
 
     KeySection("設定") {
         OutlinedTextField(
