@@ -22,7 +22,7 @@ import net.brightroom.garage.server.s3.SecretCache
  *
  * 静的ファイル配信と CallLogging は各ルートのテストに不要なため含めない。
  */
-fun ApplicationTestBuilder.garageApp(engine: MockEngine) {
+fun ApplicationTestBuilder.garageApp(engine: MockEngine, cache: SecretCache = SecretCache()) {
     environment {
         config = MapApplicationConfig(
             "garage.admin.endpoint" to "http://garage.test:3903",
@@ -33,7 +33,6 @@ fun ApplicationTestBuilder.garageApp(engine: MockEngine) {
     }
     application {
         val client = GarageAdminClient("http://garage.test:3903", engine)
-        val cache = SecretCache()
         val s3Config = AppConfig.S3(
             endpoint = "http://garage.test:3900",
             region = "garage",

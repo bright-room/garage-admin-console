@@ -115,7 +115,7 @@ LIMITED_TOKEN_COUNT=$(echo "${EXISTING_TOKENS}" | jq '[.[] | select(.name == "de
 
 if [ "${LIMITED_TOKEN_COUNT}" = "0" ]; then
   echo "Creating admin token 'dev-limited'..."
-  # GetKeyInfo を含まない。S3 資格情報の導出だけが 403 になり、
+  # GetKeyInfo と InspectObject を含まない。S3 資格情報の導出とキー詳細が 403 になり、
   # オブジェクトブラウザの縮退を再現できる
   LIMITED_RESPONSE=$(curl -sf -X POST \
     -H "Authorization: Bearer ${ADMIN_TOKEN}" \

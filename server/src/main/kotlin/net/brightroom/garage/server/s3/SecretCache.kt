@@ -15,6 +15,10 @@ import kotlin.time.Instant
  * キーは **admin token のハッシュ**とバケット ID の組である。生のトークンは
  * 保持しない（spec §6.2）。ハッシュを引けるのは同じトークンを提示できる者だけなので、
  * 別の利用者のキャッシュには到達できない。
+ *
+ * キャッシュが有効な間は、Garage 側で admin token を失効させても最大 TTL 分は
+ * オブジェクト操作が通り続ける（`objectRoutes` はキャッシュヒット時に Garage へ
+ * 検証を投げないため）。
  */
 class SecretCache(private val ttl: Duration = 5.minutes, private val now: () -> Instant = { Clock.System.now() }) {
     private data class Entry(val credentials: S3Credentials, val expiresAt: Instant)
@@ -26,7 +30,9 @@ class SecretCache(private val ttl: Duration = 5.minutes, private val now: () -> 
         val entry = entries[key] ?: return null
 
         if (entry.expiresAt <= now()) {
-            entries.remove(key)
+            // 対象のインスタンスが一致する場合のみ削除する。期限切れと判定した直後に
+            // 別スレッドが同じキーへ put() していても、その新しいエントリを消さない
+            entries.remove(key, entry)
             return null
         }
 
@@ -34,7 +40,12 @@ class SecretCache(private val ttl: Duration = 5.minutes, private val now: () -> 
     }
 
     fun put(tokenHash: String, bucketId: String, credentials: S3Credentials) {
-        entries[cacheKey(tokenHash, bucketId)] = Entry(credentials, now().plus(ttl))
+        // 掃除する経路がここにしか無いため、先に期限切れを掃く。
+        // これを怠ると、平文の secret がプロセスが死ぬまでヒープに残りうる
+        val nowInstant = now()
+        entries.values.removeAll { it.expiresAt <= nowInstant }
+
+        entries[cacheKey(tokenHash, bucketId)] = Entry(credentials, nowInstant.plus(ttl))
     }
 
     /** ログアウト時にそのトークン配下をすべて捨てる（spec §6.6）。 */

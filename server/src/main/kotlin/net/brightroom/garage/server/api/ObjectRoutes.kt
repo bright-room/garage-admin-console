@@ -78,7 +78,7 @@ fun Route.objectRoutes(client: GarageAdminClient, resolver: S3CredentialResolver
 
             // Content-Disposition は付けない。ファイル名はブラウザ側が決める（P2-2）
             store.download(credentials, key) { contentType, body ->
-                call.respondOutputStream(contentType = ContentType.parse(contentType)) {
+                call.respondOutputStream(contentType = contentType.asStoredContentType()) {
                     body.writeToOutputStream(this)
                 }
             }
@@ -98,3 +98,13 @@ fun Route.objectRoutes(client: GarageAdminClient, resolver: S3CredentialResolver
  */
 internal fun ContentType.orOctetStreamIfAny(): String =
     if (this == ContentType.Any) "application/octet-stream" else toString()
+
+/**
+ * S3 に保存済みのオブジェクトの Content-Type をパースする。
+ *
+ * これはリクエストのヘッダではなく保存済みメタデータなので、他のツールが壊れた形式の
+ * まま置いていても、利用者はリクエストを直しようがない。パースに失敗した場合は
+ * ダウンロードそのものを失敗させず、octet-stream にフォールバックする。
+ */
+internal fun String.asStoredContentType(): ContentType =
+    runCatching { ContentType.parse(this) }.getOrDefault(ContentType.Application.OctetStream)

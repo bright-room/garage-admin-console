@@ -55,6 +55,23 @@ class SecretCacheTest {
     }
 
     @Test
+    fun sweepsExpiredEntriesOnPut() {
+        // 期限切れの掃除は get() が同じキーで呼ばれたときにしか起きない。
+        // put() の先頭でも掃かれることを、別キーの put() 経由で確認する
+        val clock = FakeClock()
+        val cache = SecretCache(ttl = 5.minutes, now = { clock.now })
+
+        cache.put("hash-a", "b1", credentials)
+        clock.advance(6)
+        assertEquals(1, cache.size)
+
+        cache.put("hash-b", "b1", credentials)
+
+        assertEquals(1, cache.size)
+        assertNull(cache.get("hash-a", "b1"))
+    }
+
+    @Test
     fun purgeDropsEveryBucketOfThatToken() {
         val cache = SecretCache()
         cache.put("hash-a", "b1", credentials)

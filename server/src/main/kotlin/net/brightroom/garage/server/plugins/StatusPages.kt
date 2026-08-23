@@ -1,7 +1,10 @@
 package net.brightroom.garage.server.plugins
 
+import aws.sdk.kotlin.services.s3.model.AccessDenied
+import aws.sdk.kotlin.services.s3.model.NoSuchBucket
 import aws.sdk.kotlin.services.s3.model.NoSuchKey
 import aws.sdk.kotlin.services.s3.model.S3Exception
+import aws.smithy.kotlin.runtime.SdkBaseException
 import io.ktor.http.BadContentTypeFormatException
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -103,9 +106,32 @@ fun Application.configureStatusPages() {
             )
         }
 
+        // Garage の判定をそのまま伝える（spec §6.3）。502 に握り潰さない
+        exception<AccessDenied> { call, _ ->
+            call.respondProblem(
+                status = HttpStatusCode.Forbidden,
+                detail = "このキーではこの操作を行えません",
+            )
+        }
+
+        exception<NoSuchBucket> { call, _ ->
+            call.respondProblem(status = HttpStatusCode.NotFound, detail = "バケットが見つかりません")
+        }
+
         // S3 側の失敗。SDK のメッセージは外に出さない（資格情報や内部の詳細を含みうる）
         exception<S3Exception> { call, cause ->
             call.application.log.error("S3 request failed at ${call.request.path()}", cause)
+            call.respondProblem(
+                status = HttpStatusCode.BadGateway,
+                detail = "ストレージへのアクセスに失敗しました",
+            )
+        }
+
+        // 接続拒否・DNS 失敗・TLS エラー・タイムアウトなど、S3 まで届かなかった失敗。
+        // HttpException 等は S3Exception の子孫ではなく SdkBaseException の直接の子なので
+        // 別ハンドラが要る。上流の障害として 502 にする
+        exception<SdkBaseException> { call, cause ->
+            call.application.log.error("S3 transport failed at ${call.request.path()}", cause)
             call.respondProblem(
                 status = HttpStatusCode.BadGateway,
                 detail = "ストレージへのアクセスに失敗しました",

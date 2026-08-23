@@ -52,6 +52,13 @@ class ObjectRoutesTest {
     }
 
     @Test
+    fun fallsBackToOctetStreamWhenStoredContentTypeIsMalformed() {
+        // 保存済みオブジェクトのメタデータであって、リクエストのヘッダではない
+        assertEquals(ContentType.Text.Plain, "text/plain".asStoredContentType())
+        assertEquals(ContentType.Application.OctetStream, "not a content type;;;".asStoredContentType())
+    }
+
+    @Test
     fun requiresKeyParameterForDownload() = testApplication {
         garageApp(engineOf(mapOf("GetBucketInfo" to (bucketBody(ownerKey) to HttpStatusCode.OK))))
 
