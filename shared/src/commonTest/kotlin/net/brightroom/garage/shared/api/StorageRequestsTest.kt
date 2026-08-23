@@ -10,7 +10,10 @@ import kotlin.test.assertTrue
 
 class StorageRequestsTest {
     // サーバーと同じ設定。省略と空配列の差が UpdateBucket の意味論そのものになる。
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
 
     @Test
     fun omitsUntouchedFields() {

@@ -1,8 +1,8 @@
 package net.brightroom.garage.shared.model.garage
 
-import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 /** `ListBuckets` の要素。 */
 @Serializable
@@ -20,10 +20,7 @@ data class BucketSummary(
 }
 
 @Serializable
-data class BucketLocalAlias(
-    val accessKeyId: String,
-    val alias: String,
-)
+data class BucketLocalAlias(val accessKeyId: String, val alias: String)
 
 /** `GetBucketInfo` のレスポンス。`CreateBucket` と `UpdateBucket` も同じ形を返す。 */
 @Serializable
@@ -62,11 +59,7 @@ data class BucketKey(
 )
 
 @Serializable
-data class BucketKeyPermissions(
-    val owner: Boolean = false,
-    val read: Boolean = false,
-    val write: Boolean = false,
-) {
+data class BucketKeyPermissions(val owner: Boolean = false, val read: Boolean = false, val write: Boolean = false) {
     /**
      * S3 資格情報を導出するときの優先度（spec §6.4 の owner > read+write > read）。
      *
@@ -83,10 +76,7 @@ data class BucketKeyPermissions(
 }
 
 @Serializable
-data class BucketQuotas(
-    val maxObjects: Long? = null,
-    val maxSize: Long? = null,
-)
+data class BucketQuotas(val maxObjects: Long? = null, val maxSize: Long? = null)
 
 /**
  * website 公開の設定。
@@ -96,10 +86,7 @@ data class BucketQuotas(
  * （実機で確認済み）ので、持たないことで既存設定を壊すことはない。
  */
 @Serializable
-data class BucketWebsiteConfig(
-    val indexDocument: String,
-    val errorDocument: String? = null,
-)
+data class BucketWebsiteConfig(val indexDocument: String, val errorDocument: String? = null)
 
 /**
  * CORS ルール。
@@ -159,6 +146,4 @@ data class LifecycleExpiration(
 )
 
 @Serializable
-data class AbortIncompleteMultipartUpload(
-    @SerialName("DaysAfterInitiation") val daysAfterInitiation: Long,
-)
+data class AbortIncompleteMultipartUpload(@SerialName("DaysAfterInitiation") val daysAfterInitiation: Long)

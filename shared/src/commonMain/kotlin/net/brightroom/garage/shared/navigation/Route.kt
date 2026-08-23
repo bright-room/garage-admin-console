@@ -63,11 +63,17 @@ sealed interface Route {
 
             return when {
                 segments.isEmpty() -> Overview
+
                 segments.size == 1 && segments[0] == "login" -> Login
+
                 segments.size == 1 && segments[0] == "buckets" -> Buckets
+
                 segments.size == 2 && segments[0] == "buckets" -> BucketDetail(segments[1])
+
                 segments.size == 1 && segments[0] == "keys" -> Keys
+
                 segments.size == 2 && segments[0] == "keys" -> KeyDetail(segments[1])
+
                 segments.size == 2 && segments[0] == "objects" ->
                     Objects(segments[1], queryValue(query, "prefix").orEmpty())
 

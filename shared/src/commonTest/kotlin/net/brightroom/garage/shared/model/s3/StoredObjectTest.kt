@@ -7,7 +7,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class StoredObjectTest {
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
 
     @Test
     fun roundTripsListing() {

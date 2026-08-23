@@ -1,7 +1,7 @@
 package net.brightroom.garage.shared.model.garage
 
-import kotlin.time.Instant
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 /**
  * `InspectObject` のレスポンス。
@@ -10,11 +10,7 @@ import kotlinx.serialization.Serializable
  * オブジェクトブラウザの「詳細」から開く。
  */
 @Serializable
-data class ObjectInspection(
-    val bucketId: String,
-    val key: String,
-    val versions: List<ObjectVersion> = emptyList(),
-)
+data class ObjectInspection(val bucketId: String, val key: String, val versions: List<ObjectVersion> = emptyList())
 
 @Serializable
 data class ObjectVersion(
@@ -33,9 +29,4 @@ data class ObjectVersion(
 )
 
 @Serializable
-data class ObjectBlock(
-    val partNumber: Long,
-    val offset: Long,
-    val hash: String,
-    val size: Long,
-)
+data class ObjectBlock(val partNumber: Long, val offset: Long, val hash: String, val size: Long)

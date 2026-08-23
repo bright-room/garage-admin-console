@@ -1,11 +1,11 @@
 package net.brightroom.garage.shared.api
 
-import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import net.brightroom.garage.shared.model.garage.BucketKeyPermissions
 import net.brightroom.garage.shared.model.garage.BucketQuotas
 import net.brightroom.garage.shared.model.garage.CorsRule
 import net.brightroom.garage.shared.model.garage.LifecycleRule
+import kotlin.time.Instant
 
 /**
  * ブラウザ → サーバーのリクエスト。
@@ -51,42 +51,26 @@ data class WebsiteAccessRequest(
 )
 
 @Serializable
-data class BucketAliasRequest(
-    val alias: String,
-)
+data class BucketAliasRequest(val alias: String)
 
 @Serializable
-data class BucketKeyPermissionRequest(
-    val permissions: BucketKeyPermissions,
-)
+data class BucketKeyPermissionRequest(val permissions: BucketKeyPermissions)
 
 @Serializable
-data class CleanupUploadsRequest(
-    val olderThanSecs: Long = DEFAULT_CLEANUP_AGE_SECS,
-)
+data class CleanupUploadsRequest(val olderThanSecs: Long = DEFAULT_CLEANUP_AGE_SECS)
 
 /** 24 時間。進行中のアップロードを巻き込まないための既定値（P2-9）。 */
 const val DEFAULT_CLEANUP_AGE_SECS: Long = 86_400
 
 /** 後始末の結果。画面に「N 件を削除しました」と出すためだけに持つ。 */
 @Serializable
-data class CleanupUploadsResult(
-    val uploadsDeleted: Long,
-)
+data class CleanupUploadsResult(val uploadsDeleted: Long)
 
 @Serializable
-data class CreateKeyRequest(
-    val name: String,
-    val allowCreateBucket: Boolean = false,
-    val expiration: Instant? = null,
-)
+data class CreateKeyRequest(val name: String, val allowCreateBucket: Boolean = false, val expiration: Instant? = null)
 
 @Serializable
-data class ImportKeyRequest(
-    val name: String,
-    val accessKeyId: String,
-    val secretAccessKey: String,
-) {
+data class ImportKeyRequest(val name: String, val accessKeyId: String, val secretAccessKey: String) {
     /** secret をログに出さない。`equals` / `hashCode` は既定のままでよい。 */
     override fun toString(): String =
         "ImportKeyRequest(name=$name, accessKeyId=$accessKeyId, secretAccessKey=<redacted>)"

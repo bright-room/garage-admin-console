@@ -1,7 +1,7 @@
 package net.brightroom.garage.shared.model.s3
 
-import kotlin.time.Instant
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 /**
  * `ListObjectsV2` の 1 ページ。
@@ -34,12 +34,7 @@ data class ObjectListing(
 }
 
 @Serializable
-data class StoredObject(
-    val key: String,
-    val size: Long,
-    val lastModified: Instant? = null,
-    val etag: String? = null,
-) {
+data class StoredObject(val key: String, val size: Long, val lastModified: Instant? = null, val etag: String? = null) {
     /** [prefix] 配下での表示名。 */
     fun nameIn(prefix: String): String = key.removePrefix(prefix)
 }

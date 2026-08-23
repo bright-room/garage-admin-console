@@ -7,7 +7,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ObjectInspectionTest {
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
 
     @Test
     fun decodesObjectInspection() {

@@ -1,7 +1,7 @@
 package net.brightroom.garage.shared.model.garage
 
-import kotlin.time.Instant
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 /** `ListKeys` の要素。 */
 @Serializable
@@ -31,15 +31,12 @@ data class KeyInfo(
     val secretAccessKey: String? = null,
 ) {
     /** secret をログに出さない。`equals` / `hashCode` は既定のままでよい。 */
-    override fun toString(): String =
-        "KeyInfo(accessKeyId=$accessKeyId, name=$name, expired=$expired, " +
-            "secretAccessKey=${if (secretAccessKey == null) "null" else "<redacted>"})"
+    override fun toString(): String = "KeyInfo(accessKeyId=$accessKeyId, name=$name, expired=$expired, " +
+        "secretAccessKey=${if (secretAccessKey == null) "null" else "<redacted>"})"
 }
 
 @Serializable
-data class KeyPermissions(
-    val createBucket: Boolean = false,
-)
+data class KeyPermissions(val createBucket: Boolean = false)
 
 /** そのキーが権限を持つバケット。 */
 @Serializable
