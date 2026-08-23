@@ -34,4 +34,4 @@ jobs:
       - name: Check and Build
         uses: ./.github/actions/gradle-action
         with:
-          command: spotlessCheck server:check shared:jvmTest server:buildFatJar
+          command: spotlessCheck server:check shared:check server:buildFatJar
