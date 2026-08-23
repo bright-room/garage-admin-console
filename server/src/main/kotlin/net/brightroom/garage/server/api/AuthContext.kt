@@ -52,3 +52,14 @@ fun ApplicationCall.adminToken(): String {
 
     return token
 }
+
+/** パスやクエリの必須パラメータが無い、または本文が解釈できない。 */
+class InvalidRequestException(override val message: String) : RuntimeException(message)
+
+/** パスパラメータを取り出す。ルートの定義と食い違っていれば 400 になる。 */
+fun ApplicationCall.pathParam(name: String): String = parameters[name]?.takeIf { it.isNotBlank() }
+    ?: throw InvalidRequestException("パスに $name が必要です")
+
+/** クエリパラメータを取り出す。 */
+fun ApplicationCall.queryParam(name: String): String = request.queryParameters[name]?.takeIf { it.isNotBlank() }
+    ?: throw InvalidRequestException("クエリに $name が必要です")

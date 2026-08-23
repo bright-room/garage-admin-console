@@ -5,6 +5,8 @@ import io.ktor.server.config.MapApplicationConfig
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.testing.ApplicationTestBuilder
+import net.brightroom.garage.server.api.bucketRoutes
+import net.brightroom.garage.server.api.keyRoutes
 import net.brightroom.garage.server.api.sessionRoutes
 import net.brightroom.garage.server.garage.GarageAdminClient
 import net.brightroom.garage.server.plugins.configureSerialization
@@ -26,6 +28,8 @@ fun ApplicationTestBuilder.garageApp(engine: MockEngine) {
         routing {
             route("/api") {
                 sessionRoutes(client)
+                bucketRoutes(client)
+                keyRoutes(client)
             }
         }
     }

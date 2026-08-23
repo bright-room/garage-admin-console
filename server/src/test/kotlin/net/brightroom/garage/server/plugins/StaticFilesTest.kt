@@ -3,6 +3,7 @@ package net.brightroom.garage.server.plugins
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import net.brightroom.garage.shared.api.ProblemDetails
 import kotlin.test.Test
@@ -11,7 +12,7 @@ import kotlin.test.assertTrue
 
 class StaticFilesTest {
 
-    private fun io.ktor.server.testing.ApplicationTestBuilder.staticApp() {
+    private fun ApplicationTestBuilder.staticApp() {
         application {
             configureSerialization()
             configureStatusPages()
