@@ -355,9 +355,9 @@ private fun KeySection(
         }
 
         bucket.keys.forEach { key ->
-            var read by remember(key.accessKeyId) { mutableStateOf(key.permissions.read) }
-            var write by remember(key.accessKeyId) { mutableStateOf(key.permissions.write) }
-            var owner by remember(key.accessKeyId) { mutableStateOf(key.permissions.owner) }
+            var read by remember(key.accessKeyId, key.permissions) { mutableStateOf(key.permissions.read) }
+            var write by remember(key.accessKeyId, key.permissions) { mutableStateOf(key.permissions.write) }
+            var owner by remember(key.accessKeyId, key.permissions) { mutableStateOf(key.permissions.owner) }
 
             val hasNewGrant = (read && !key.permissions.read) ||
                 (write && !key.permissions.write) ||
