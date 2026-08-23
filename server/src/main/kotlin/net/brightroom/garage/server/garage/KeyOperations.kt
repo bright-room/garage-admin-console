@@ -1,6 +1,7 @@
 package net.brightroom.garage.server.garage
 
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -75,13 +76,13 @@ suspend fun GarageAdminClient.deleteKey(token: String, id: String) {
 }
 
 /** `createBucket` の可否を Garage の allow / deny に振り分ける。 */
-private fun kotlinx.serialization.json.JsonObjectBuilder.putPermission(allowed: Boolean) {
+private fun JsonObjectBuilder.putPermission(allowed: Boolean) {
     val field = if (allowed) "allow" else "deny"
 
     putJsonObject(field) { put("createBucket", true) }
 }
 
-private fun kotlinx.serialization.json.JsonObjectBuilder.putExpiration(expiration: String?, neverExpires: Boolean) {
+private fun JsonObjectBuilder.putExpiration(expiration: String?, neverExpires: Boolean) {
     when {
         neverExpires -> put("neverExpires", true)
         expiration != null -> put("expiration", expiration)

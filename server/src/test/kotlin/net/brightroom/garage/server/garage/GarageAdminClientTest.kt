@@ -5,8 +5,11 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import net.brightroom.garage.shared.model.garage.ClusterHealth
 import net.brightroom.garage.shared.model.garage.ClusterHealthStatus
 import kotlin.test.Test
@@ -116,7 +119,7 @@ class GarageAdminClientTest {
     fun postsJsonBody() = runTest {
         var capturedBody: String? = null
         val engine = MockEngine { request ->
-            capturedBody = (request.body as io.ktor.http.content.TextContent).text
+            capturedBody = (request.body as TextContent).text
             respond("""[]""", HttpStatusCode.OK, jsonHeaders)
         }
         val client = GarageAdminClient("http://garage.test:3903", engine)
@@ -124,8 +127,8 @@ class GarageAdminClientTest {
         client.post(
             token = "tok",
             operation = "ListWorkers",
-            body = kotlinx.serialization.json.buildJsonObject {
-                put("node", kotlinx.serialization.json.JsonPrimitive("*"))
+            body = buildJsonObject {
+                put("node", JsonPrimitive("*"))
             },
         )
 
