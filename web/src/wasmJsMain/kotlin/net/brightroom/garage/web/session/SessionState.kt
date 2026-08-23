@@ -4,6 +4,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import kotlinx.browser.window
 import net.brightroom.garage.shared.api.ProblemDetails
@@ -13,6 +14,7 @@ import net.brightroom.garage.shared.session.IdleTracker
 import net.brightroom.garage.web.api.ApiClient
 import net.brightroom.garage.web.api.ApiResult
 import net.brightroom.garage.web.api.getJson
+import net.brightroom.garage.web.api.sendEmpty
 import kotlin.time.Clock
 
 private const val TOKEN_STORAGE_KEY = "garage-admin-console.token"
@@ -76,7 +78,7 @@ class SessionState {
     suspend fun signOut() {
         // サーバー側の後始末（Phase 2 以降は S3 secret キャッシュの破棄）を依頼する。
         // 失敗してもローカルの破棄は必ず行う。
-        api.postEmpty("/api/session/logout")
+        api.sendEmpty(HttpMethod.Post, "/api/session/logout")
         clear()
     }
 

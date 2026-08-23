@@ -21,6 +21,10 @@ import net.brightroom.garage.web.components.ErrorView
 import net.brightroom.garage.web.navigation.AppScaffold
 import net.brightroom.garage.web.router.RouterState
 import net.brightroom.garage.web.router.rememberRouter
+import net.brightroom.garage.web.screens.buckets.BucketDetailScreen
+import net.brightroom.garage.web.screens.buckets.BucketsScreen
+import net.brightroom.garage.web.screens.keys.KeyDetailScreen
+import net.brightroom.garage.web.screens.keys.KeysScreen
 import net.brightroom.garage.web.screens.login.LoginScreen
 import net.brightroom.garage.web.screens.overview.OverviewScreen
 import net.brightroom.garage.web.session.LocalSession
@@ -83,11 +87,25 @@ private fun AuthenticatedApp(router: RouterState) {
             // ログイン済みで /login に来たら概況を出す
             is Route.NotFound -> ErrorView("画面が見つかりません: ${route.path}")
 
-            // Task 13 以降で各画面に差し替える
-            Route.Buckets, is Route.BucketDetail,
-            Route.Keys, is Route.KeyDetail,
-            is Route.Objects,
-            -> OverviewScreen()
+            Route.Buckets -> BucketsScreen(onOpen = { router.navigate(Route.BucketDetail(it)) })
+
+            is Route.BucketDetail -> BucketDetailScreen(
+                bucketId = route.id,
+                onOpenObjects = { router.navigate(Route.Objects(it)) },
+                onOpenKey = { router.navigate(Route.KeyDetail(it)) },
+                onDeleted = { router.replace(Route.Buckets) },
+            )
+
+            Route.Keys -> KeysScreen(onOpen = { router.navigate(Route.KeyDetail(it)) })
+
+            is Route.KeyDetail -> KeyDetailScreen(
+                keyId = route.id,
+                onOpenBucket = { router.navigate(Route.BucketDetail(it)) },
+                onDeleted = { router.replace(Route.Keys) },
+            )
+
+            // Task 17 以降で差し替える
+            is Route.Objects -> OverviewScreen()
         }
     }
 }

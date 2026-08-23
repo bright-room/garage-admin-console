@@ -3,17 +3,21 @@ package net.brightroom.garage.web.api
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.js.Js
 import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.client.request.post
+import io.ktor.client.request.request
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.Json
 import net.brightroom.garage.shared.api.ProblemDetails
+import kotlin.coroutines.cancellation.CancellationException
 
 val AppJson: Json = Json {
     ignoreUnknownKeys = true
@@ -24,11 +28,15 @@ val AppJson: Json = Json {
  * `/api` の呼び出し結果。
  *
  * 401 は「トークンが無効になった」を意味し、画面をログインへ戻す必要があるため
- * 通常の失敗と区別する。判定にはレスポンスのステータスを使う。
+ * 通常の失敗と区別する。それ以外の分岐（403 の scope 不足、409 の S3 縮退）は
+ * [Failure.status] と [ProblemDetails.type] で判断する。
+ *
+ * 分岐に使うのは HTTP レスポンスのステータスであって、problem details の
+ * `status` フィールドではない（spec §7.1）。
  */
 sealed interface ApiResult<out T> {
     data class Success<T>(val value: T) : ApiResult<T>
-    data class Failure(val problem: ProblemDetails) : ApiResult<Nothing>
+    data class Failure(val status: HttpStatusCode, val problem: ProblemDetails) : ApiResult<Nothing>
     data object Unauthorized : ApiResult<Nothing>
 }
 
@@ -44,18 +52,26 @@ class ApiClient(private val tokenProvider: () -> String?) {
         expectSuccess = false
     }
 
-    suspend fun getText(path: String): ApiResult<String> = runCatching {
-        http.get(path) { authorize() }
+    suspend fun getText(path: String): ApiResult<String> = sendText(HttpMethod.Get, path)
+
+    /**
+     * @param json 送る本文。null なら本文なしで送る。
+     */
+    suspend fun sendText(method: HttpMethod, path: String, json: String? = null): ApiResult<String> = runCatching {
+        http.request(path) {
+            this.method = method
+            authorize()
+            if (json != null) {
+                contentType(ContentType.Application.Json)
+                setBody(json)
+            }
+        }
     }.fold(
         onSuccess = { it.toResult { body -> body } },
-        onFailure = { ApiResult.Failure(networkProblem(it)) },
-    )
-
-    suspend fun postEmpty(path: String): ApiResult<Unit> = runCatching {
-        http.post(path) { authorize() }
-    }.fold(
-        onSuccess = { it.toResult { } },
-        onFailure = { ApiResult.Failure(networkProblem(it)) },
+        onFailure = {
+            if (it is CancellationException) throw it
+            ApiResult.Failure(HttpStatusCode.ServiceUnavailable, networkProblem(it))
+        },
     )
 
     private fun HttpRequestBuilder.authorize() {
@@ -68,7 +84,7 @@ class ApiClient(private val tokenProvider: () -> String?) {
         return when {
             status == HttpStatusCode.Unauthorized -> ApiResult.Unauthorized
             status.isSuccess() -> ApiResult.Success(transform(body))
-            else -> ApiResult.Failure(parseProblem(body, status))
+            else -> ApiResult.Failure(status, parseProblem(body, status))
         }
     }
 
@@ -93,19 +109,38 @@ private fun problemOf(status: HttpStatusCode, detail: String): ProblemDetails =
 
 /** 本文を [deserializer] でデコードして返す。 */
 suspend fun <T> ApiClient.getJson(path: String, deserializer: DeserializationStrategy<T>): ApiResult<T> =
-    when (val raw = getText(path)) {
-        is ApiResult.Success ->
-            runCatching { ApiResult.Success(AppJson.decodeFromString(deserializer, raw.value)) }
-                .getOrElse {
-                    ApiResult.Failure(
-                        problemOf(
-                            status = HttpStatusCode.InternalServerError,
-                            detail = "サーバーからの応答を解釈できませんでした",
-                        ),
-                    )
-                }
+    decode(getText(path), deserializer)
 
-        is ApiResult.Failure -> raw
+/** JSON を送り、返ってきた JSON をデコードする。 */
+suspend fun <T> ApiClient.sendJson(
+    method: HttpMethod,
+    path: String,
+    body: String?,
+    deserializer: DeserializationStrategy<T>,
+): ApiResult<T> = decode(sendText(method, path, body), deserializer)
 
+/** 応答の本文を読まない呼び出し（204 を返すもの）。 */
+suspend fun ApiClient.sendEmpty(method: HttpMethod, path: String, body: String? = null): ApiResult<Unit> =
+    when (val result = sendText(method, path, body)) {
+        is ApiResult.Success -> ApiResult.Success(Unit)
+        is ApiResult.Failure -> result
         ApiResult.Unauthorized -> ApiResult.Unauthorized
     }
+
+private fun <T> decode(raw: ApiResult<String>, deserializer: DeserializationStrategy<T>): ApiResult<T> = when (raw) {
+    is ApiResult.Success ->
+        runCatching { ApiResult.Success(AppJson.decodeFromString(deserializer, raw.value)) }
+            .getOrElse {
+                ApiResult.Failure(
+                    HttpStatusCode.InternalServerError,
+                    problemOf(
+                        status = HttpStatusCode.InternalServerError,
+                        detail = "サーバーからの応答を解釈できませんでした",
+                    ),
+                )
+            }
+
+    is ApiResult.Failure -> raw
+
+    ApiResult.Unauthorized -> ApiResult.Unauthorized
+}
