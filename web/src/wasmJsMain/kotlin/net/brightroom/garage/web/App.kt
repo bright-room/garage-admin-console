@@ -23,6 +23,8 @@ import net.brightroom.garage.web.router.RouterState
 import net.brightroom.garage.web.router.rememberRouter
 import net.brightroom.garage.web.screens.buckets.BucketDetailScreen
 import net.brightroom.garage.web.screens.buckets.BucketsScreen
+import net.brightroom.garage.web.screens.keys.KeyDetailScreen
+import net.brightroom.garage.web.screens.keys.KeysScreen
 import net.brightroom.garage.web.screens.login.LoginScreen
 import net.brightroom.garage.web.screens.overview.OverviewScreen
 import net.brightroom.garage.web.session.LocalSession
@@ -94,10 +96,16 @@ private fun AuthenticatedApp(router: RouterState) {
                 onDeleted = { router.navigate(Route.Buckets) },
             )
 
-            // Task 16 以降で各画面に差し替える
-            Route.Keys, is Route.KeyDetail,
-            is Route.Objects,
-            -> OverviewScreen()
+            Route.Keys -> KeysScreen(onOpen = { router.navigate(Route.KeyDetail(it)) })
+
+            is Route.KeyDetail -> KeyDetailScreen(
+                keyId = route.id,
+                onOpenBucket = { router.navigate(Route.BucketDetail(it)) },
+                onDeleted = { router.navigate(Route.Keys) },
+            )
+
+            // Task 17 以降で差し替える
+            is Route.Objects -> OverviewScreen()
         }
     }
 }
