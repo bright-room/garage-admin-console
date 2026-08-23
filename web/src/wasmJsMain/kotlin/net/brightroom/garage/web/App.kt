@@ -21,6 +21,7 @@ import net.brightroom.garage.web.components.ErrorView
 import net.brightroom.garage.web.navigation.AppScaffold
 import net.brightroom.garage.web.router.RouterState
 import net.brightroom.garage.web.router.rememberRouter
+import net.brightroom.garage.web.screens.buckets.BucketsScreen
 import net.brightroom.garage.web.screens.login.LoginScreen
 import net.brightroom.garage.web.screens.overview.OverviewScreen
 import net.brightroom.garage.web.session.LocalSession
@@ -83,8 +84,10 @@ private fun AuthenticatedApp(router: RouterState) {
             // ログイン済みで /login に来たら概況を出す
             is Route.NotFound -> ErrorView("画面が見つかりません: ${route.path}")
 
-            // Task 13 以降で各画面に差し替える
-            Route.Buckets, is Route.BucketDetail,
+            Route.Buckets -> BucketsScreen(onOpen = { router.navigate(Route.BucketDetail(it)) })
+
+            // Task 14 以降で各画面に差し替える
+            is Route.BucketDetail,
             Route.Keys, is Route.KeyDetail,
             is Route.Objects,
             -> OverviewScreen()
