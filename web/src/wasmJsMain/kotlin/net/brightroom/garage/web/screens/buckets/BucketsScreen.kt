@@ -36,8 +36,8 @@ import net.brightroom.garage.web.api.sendJson
 import net.brightroom.garage.web.components.DataTable
 import net.brightroom.garage.web.components.LoadingView
 import net.brightroom.garage.web.components.ProblemView
+import net.brightroom.garage.web.components.TableColumn
 import net.brightroom.garage.web.session.LocalSession
-import net.brightroom.garage.web.components.Column as TableColumn
 
 @Composable
 fun BucketsScreen(onOpen: (String) -> Unit) {
@@ -111,7 +111,6 @@ private fun BucketTable(buckets: List<BucketSummary>, onOpen: (String) -> Unit) 
         items = buckets,
         onRowClick = { onOpen(it.id) },
         emptyMessage = "バケットがありません",
-        searchPlaceholder = "名前や ID で絞り込み",
         columns = listOf(
             TableColumn(
                 title = "名前",

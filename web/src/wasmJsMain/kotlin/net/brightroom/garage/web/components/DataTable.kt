@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
  *   数値や日時の列は明示的に渡す（文字列の辞書順では順序が狂うため）。
  * @param content セルの描画。null なら [value] をそのまま出す。
  */
-data class Column<T>(
+data class TableColumn<T>(
     val title: String,
     val value: (T) -> String,
     val weight: Float = 1f,
@@ -43,7 +43,7 @@ data class Column<T>(
 @Composable
 fun <T> DataTable(
     items: List<T>,
-    columns: List<Column<T>>,
+    columns: List<TableColumn<T>>,
     modifier: Modifier = Modifier,
     searchPlaceholder: String = "絞り込み",
     emptyMessage: String = "項目がありません",
