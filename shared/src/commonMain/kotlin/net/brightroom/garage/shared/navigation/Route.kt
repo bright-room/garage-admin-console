@@ -8,7 +8,7 @@ package net.brightroom.garage.shared.navigation
  */
 sealed interface Route {
 
-    /** この画面を指す正規の URL パス。 */
+    /** この画面を指す正規の URL パス。クエリを持つ画面はそれも含む。 */
     val path: String
 
     data object Overview : Route {
@@ -19,6 +19,36 @@ sealed interface Route {
         override val path: String = "/login"
     }
 
+    data object Buckets : Route {
+        override val path: String = "/buckets"
+    }
+
+    data class BucketDetail(val id: String) : Route {
+        override val path: String get() = "/buckets/$id"
+    }
+
+    data object Keys : Route {
+        override val path: String = "/keys"
+    }
+
+    data class KeyDetail(val id: String) : Route {
+        override val path: String get() = "/keys/$id"
+    }
+
+    /**
+     * オブジェクトブラウザ。
+     *
+     * @param prefix 表示中のフォルダ。ルート直下は空文字。URL のクエリに載る。
+     */
+    data class Objects(val bucketId: String, val prefix: String = "") : Route {
+        override val path: String
+            get() = if (prefix.isEmpty()) {
+                "/objects/$bucketId"
+            } else {
+                "/objects/$bucketId?prefix=${percentEncode(prefix)}"
+            }
+    }
+
     data class NotFound(val requested: String) : Route {
         override val path: String get() = requested
     }
@@ -26,22 +56,42 @@ sealed interface Route {
     companion object {
 
         fun parse(rawPath: String): Route {
-            val normalized = normalize(rawPath)
+            val withoutFragment = rawPath.substringBefore('#')
+            val path = normalize(withoutFragment.substringBefore('?'))
+            val query = withoutFragment.substringAfter('?', "")
+            val segments = path.split('/').filter { it.isNotEmpty() }
 
-            return when (normalized) {
-                "" -> Overview
-                "/login" -> Login
-                else -> NotFound(normalized)
+            return when {
+                segments.isEmpty() -> Overview
+
+                segments.size == 1 && segments[0] == "login" -> Login
+
+                segments.size == 1 && segments[0] == "buckets" -> Buckets
+
+                segments.size == 2 && segments[0] == "buckets" -> BucketDetail(segments[1])
+
+                segments.size == 1 && segments[0] == "keys" -> Keys
+
+                segments.size == 2 && segments[0] == "keys" -> KeyDetail(segments[1])
+
+                segments.size == 2 && segments[0] == "objects" ->
+                    Objects(segments[1], queryValue(query, "prefix").orEmpty())
+
+                else -> NotFound(path)
             }
         }
 
-        /** クエリと fragment を落とし、末尾スラッシュを取り除く。 */
+        /** 末尾スラッシュを取り除く。ルートは空文字にそろえる。 */
         private fun normalize(rawPath: String): String {
-            val withoutFragment = rawPath.substringBefore('#')
-            val withoutQuery = withoutFragment.substringBefore('?')
-            val trimmed = withoutQuery.trimEnd('/')
+            val trimmed = rawPath.trimEnd('/')
 
             return if (trimmed == "/") "" else trimmed
         }
+
+        private fun queryValue(query: String, name: String): String? = query
+            .split('&')
+            .firstOrNull { it.substringBefore('=') == name }
+            ?.substringAfter('=', "")
+            ?.let(::percentDecode)
     }
 }

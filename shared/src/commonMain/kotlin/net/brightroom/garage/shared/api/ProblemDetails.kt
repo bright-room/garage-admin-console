@@ -14,7 +14,8 @@ import kotlinx.serialization.Serializable
  *   その status の推奨理由句であるべきと RFC 9457 が定めている。
  * @param status HTTP ステータスコード。RFC 9457 は JSON number と定める。
  * @param type 問題の種類を識別する URI。省略時は `about:blank` とみなされる。
- *   コンソール固有の問題型を定義するまでは常に省略する。
+ *   S3 ブラウザの縮退 2 種（バケットがアドレス不能、使えるキーが無い）は
+ *   [ProblemTypes] の URN を入れる。それ以外は常に省略する。
  * @param detail この発生に固有の説明。Garage が返した本文を入れる。
  * @param instance この発生を識別する URI。リクエストパスを入れる。
  * @param operation 拡張メンバー。原因となった Garage の operation 名。
