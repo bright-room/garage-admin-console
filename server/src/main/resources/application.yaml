@@ -16,3 +16,7 @@ ktor:
 garage:
   admin:
     endpoint: ${GARAGE_ADMIN_ENDPOINT:http://localhost:3903}
+  s3:
+    endpoint: ${GARAGE_S3_ENDPOINT:http://localhost:3900}
+    region: ${GARAGE_S3_REGION:garage}
+    pathStyle: ${GARAGE_S3_PATH_STYLE:true}
