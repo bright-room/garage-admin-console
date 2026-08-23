@@ -12,9 +12,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 温まった状態で 3 分半。キャッシュが失効すると依存 350MB と Gradle 本体
-    # 149MB の取得が加わるため、コールドを見込んで余裕を残す。
-    timeout-minutes: 15
+    # ウォーム 3 分半、キャッシュを全削除したコールドで 4 分10秒（実測）。
+    # 依存 412MB と Gradle 本体の取得を含めてもこの程度で収まる。
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
