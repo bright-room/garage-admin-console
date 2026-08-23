@@ -126,7 +126,7 @@ scope 制限があるため **403 は正常系**として扱う。
 ### 6.4 S3 資格情報の導出
 
 1. サーバーが `GetBucketInfo` でそのバケットに権限を持つキーを取得する
-2. **owner > read+write > read** の優先度で自動選択する。同順位が複数ある場合は accessKeyId の昇順で決定的に選ぶ
+2. **owner > read+write > read** の優先度で自動選択する。同順位が複数ある場合は accessKeyId の昇順で決定的に選ぶ。ただし **global alias を持たないバケットでは、選択の対象を local alias を持つキーに限定する**（6.5 のバケット名解決が導出したキーの local alias に依存するため。優先度と同順位の規則は、その限定した集合の中で適用する）
 3. 選んだキーの secret を `GetKeyInfo?showSecretKey=true` で取得する
 4. **サーバー内メモリに TTL 5 分でキャッシュ**する。キーは `(admin token のハッシュ, bucketId)`。オブジェクト操作ごとに `GetKeyInfo` を呼ばないため
 5. secret は**ブラウザに返さず、ログにも出さない**
@@ -138,7 +138,7 @@ scope 制限があるため **403 は正常系**として扱う。
 
 ### 6.5 S3 のバケット名解決
 
-`/api/buckets/{id}` の `{id}` は bucket ID だが、S3 API はバケット名を要求する。サーバーは `GetBucketInfo` の global alias を使い、無ければ**導出したキーの local alias** を使う。どちらも無いバケットは S3 でアドレスできないため、その旨を空状態で表示する。
+`/api/buckets/{id}` の `{id}` は bucket ID だが、S3 API はバケット名を要求する。サーバーは `GetBucketInfo` の global alias を使い、無ければ**導出したキーの local alias** を使う。**この依存があるため、global alias が無いバケットでは 6.4 のキー選択が local alias を持つキーに限定される**（そうしないと、最上位のキーが local alias を持たないだけで、実際には利用できるバケットがアドレス不能に見えてしまう）。どちらも無いバケットは S3 でアドレスできないため、その旨を空状態で表示する。
 
 ### 6.6 ログアウトとセッションの寿命
 

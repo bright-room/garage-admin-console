@@ -13,10 +13,14 @@ import io.ktor.http.headersOf
 import io.ktor.server.testing.testApplication
 import net.brightroom.garage.server.garageApp
 import net.brightroom.garage.server.plugins.GarageJson
+import net.brightroom.garage.server.s3.S3Credentials
+import net.brightroom.garage.server.s3.SecretCache
+import net.brightroom.garage.server.s3.hashToken
 import net.brightroom.garage.shared.api.ProblemDetails
 import net.brightroom.garage.shared.api.Session
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class SessionRoutesTest {
 
@@ -126,5 +130,28 @@ class SessionRoutesTest {
 
         assertEquals(HttpStatusCode.NoContent, response.status)
         assertEquals(false, garageCalled)
+    }
+
+    @Test
+    fun logoutPurgesCachedCredentialsOfThatTokenOnly() = testApplication {
+        val credentials = S3Credentials(
+            accessKeyId = "GK01",
+            secretAccessKey = "s3cr3t",
+            keyName = "dev-key",
+            bucketName = "dev-bucket",
+        )
+        val cache = SecretCache()
+        cache.put(hashToken("tok-abc"), "b1", credentials)
+        cache.put(hashToken("tok-other"), "b1", credentials)
+        garageApp(MockEngine { respond("", HttpStatusCode.OK) }, cache)
+
+        val response = client.post("/api/session/logout") {
+            header(HttpHeaders.Authorization, "Bearer tok-abc")
+        }
+
+        assertEquals(HttpStatusCode.NoContent, response.status)
+        assertNull(cache.get(hashToken("tok-abc"), "b1"))
+        // 他のトークンのエントリは残る（purge がトークン単位であることの確認）
+        assertEquals(credentials, cache.get(hashToken("tok-other"), "b1"))
     }
 }

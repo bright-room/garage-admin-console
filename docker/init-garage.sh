@@ -54,16 +54,9 @@ if [ "${KEY_COUNT}" = "0" ]; then
     "${GARAGE_ADMIN}/v2/CreateKey")
 
   ACCESS_KEY_ID=$(echo "${KEY_RESPONSE}" | jq -r '.accessKeyId')
-  SECRET_ACCESS_KEY=$(echo "${KEY_RESPONSE}" | jq -r '.secretAccessKey')
 
-  echo "============================================"
-  echo "Access Key ID:     ${ACCESS_KEY_ID}"
-  echo "Secret Access Key: ${SECRET_ACCESS_KEY}"
-  echo "============================================"
-  echo ""
-  echo "Add these to your mise.toml:"
-  echo "  GARAGE_S3_ACCESS_KEY_ID = \"${ACCESS_KEY_ID}\""
-  echo "  GARAGE_S3_SECRET_ACCESS_KEY = \"${SECRET_ACCESS_KEY}\""
+  # secret はコンソールが admin token から導出するため、ここでは表示しない
+  echo "Access key 'dev-key' created (${ACCESS_KEY_ID})."
 else
   echo "Access key already exists, skipping."
   ACCESS_KEY_ID=$(echo "${EXISTING_KEYS}" | jq -r '.[0].id')
@@ -115,6 +108,31 @@ if [ "${CONSOLE_TOKEN_COUNT}" = "0" ]; then
 else
   echo "Admin token 'dev-console' already exists."
   echo "Delete it and re-run to obtain a new one (the secret is shown only once)."
+fi
+
+# Create a scope-limited token for testing degraded views
+LIMITED_TOKEN_COUNT=$(echo "${EXISTING_TOKENS}" | jq '[.[] | select(.name == "dev-limited")] | length')
+
+if [ "${LIMITED_TOKEN_COUNT}" = "0" ]; then
+  echo "Creating admin token 'dev-limited'..."
+  # GetKeyInfo と InspectObject を含まない。S3 資格情報の導出とキー詳細が 403 になり、
+  # オブジェクトブラウザの縮退を再現できる
+  LIMITED_RESPONSE=$(curl -sf -X POST \
+    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{"name": "dev-limited", "neverExpires": true, "scope": [
+          "GetCurrentAdminTokenInfo", "GetClusterHealth", "GetClusterStatus",
+          "GetClusterLayout", "ListBuckets", "GetBucketInfo", "ListKeys",
+          "ListBlockErrors"]}' \
+    "${GARAGE_ADMIN}/v2/CreateAdminToken")
+
+  LIMITED_TOKEN=$(echo "${LIMITED_RESPONSE}" | jq -r '.secretToken')
+
+  echo "============================================"
+  echo "Limited-scope token: ${LIMITED_TOKEN}"
+  echo "============================================"
+else
+  echo "Admin token 'dev-limited' already exists."
 fi
 
 echo "Garage initialization complete!"

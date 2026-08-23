@@ -8,9 +8,11 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import net.brightroom.garage.server.garage.GarageAdminClient
 import net.brightroom.garage.server.garage.requireValidToken
+import net.brightroom.garage.server.s3.SecretCache
+import net.brightroom.garage.server.s3.hashToken
 import net.brightroom.garage.shared.api.toSession
 
-fun Route.sessionRoutes(client: GarageAdminClient) {
+fun Route.sessionRoutes(client: GarageAdminClient, cache: SecretCache) {
     route("/session") {
         get {
             val token = client.requireValidToken(call.adminToken())
@@ -19,12 +21,13 @@ fun Route.sessionRoutes(client: GarageAdminClient) {
         }
 
         post("/logout") {
-            // トークンの検証は行わない。ログアウトは失敗しないほうが利用者に親切であり、
-            // サーバーはトークンを保持していないため破棄すべき状態も無い。
+            // トークンの検証は行わない。ログアウトは失敗しないほうが利用者に親切である。
             //
-            // Phase 2 で S3 secret のキャッシュを導入したら、ここでそのトークン
-            // ハッシュ配下のエントリを purge する。
-            call.adminToken()
+            // サーバーが持つ唯一の状態は S3 secret のキャッシュなので、それを捨てる。
+            // 引けるのは同じトークンを提示できる者だけであり、これは機密性の担保
+            // というより後始末である（spec §6.6）。
+            cache.purge(hashToken(call.adminToken()))
+
             call.respond(HttpStatusCode.NoContent)
         }
     }
