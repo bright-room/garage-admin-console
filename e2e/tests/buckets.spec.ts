@@ -26,10 +26,10 @@ async function deleteBucketIfExists(request: APIRequestContext, name: string): P
 
 test.describe("Buckets", () => {
   // BucketDetailScreen は縦に長く、既定のビューポートでは「バケットを削除」等が
-  // 画面外に出る。Compose のアクセシビリティブリッジは実際にビューポート内へ
-  // レンダリングされた要素にしか座標を割り当てず、scrollIntoView や wheel では
-  // 中身をスクロールできない（canvas 側のスクロールと同期しない）ため、
-  // 全体が収まる高さのビューポートにする
+  // 画面外に出る。wheel でキャンバス自体はスクロールできるが、そのたびに
+  // 「どこまでスクロールしたか」を待つ条件が要り、テストごとにループが増える。
+  // 全体が収まる高さのビューポートにすれば、その待ちが丸ごと不要になる
+  // （引き換えに、現実的なビューポートでの到達性はこのテストでは見ない）
   test.use({ viewport: { width: 1280, height: 2400 } });
 
   test("creates, configures and deletes a bucket", async ({ page, request }) => {
@@ -49,7 +49,13 @@ test.describe("Buckets", () => {
       // fill 直後は Compose の状態にまだ入力が反映されていないため、
       // ツリーに反映されるのを待ってから確定する
       await expect(page.getByText(name)).toBeVisible();
+      const created = page.waitForResponse(
+        (it) => it.request().method() === "POST" && it.url().endsWith("/api/buckets"),
+      );
       await page.getByRole("button", { name: "作成", exact: true }).click({ force: true });
+      // click() が返る時点では POST がまだ飛んでいないことがあるため、
+      // 応答を待ってから reload する（先に reload すると進行中の fetch を中断しうる）
+      expect((await created).ok()).toBe(true);
 
       // 作成ダイアログが閉じるとアクセシビリティツリーが空になる。
       // リロードして取り戻してから一覧に現れたことを確認する
@@ -68,6 +74,7 @@ test.describe("Buckets", () => {
       // 設定フォームが揃っていること。保存が他の設定を巻き込まないことは
       // server 側のテスト（UpdateBucket の部分更新）で担保している
       await expect(page.getByText("上限", { exact: true })).toBeVisible();
+      await expect(page.getByText("公開", { exact: true })).toBeVisible();
       await expect(page.getByText("CORS", { exact: true })).toBeVisible();
       await expect(page.getByText("ライフサイクル", { exact: true })).toBeVisible();
 

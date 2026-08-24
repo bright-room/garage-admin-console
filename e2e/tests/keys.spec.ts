@@ -26,8 +26,8 @@ async function deleteKeyIfExists(request: APIRequestContext, name: string): Prom
 
 test.describe("Access keys", () => {
   // KeyDetailScreen も縦に長く、既定のビューポートでは「キーを削除」が画面外に
-  // 出る。Compose のアクセシビリティブリッジは実際にビューポート内へ
-  // レンダリングされた要素にしか座標を割り当てないため、全体が収まる高さにする
+  // 出る。理由は buckets.spec.ts と同じ（wheel でのスクロールはループと待ちを
+  // 増やすため、画面全体が収まる高さにして待ちを丸ごと不要にする）
   test.use({ viewport: { width: 1280, height: 1600 } });
 
   test("creates a key, shows its secret once, then deletes it", async ({ page, request }) => {
@@ -47,9 +47,20 @@ test.describe("Access keys", () => {
       await expect(page.getByText(name)).toBeVisible();
       await page.getByRole("button", { name: "作成", exact: true }).click({ force: true });
 
-      // 作成直後だけ平文のシークレットが出る
+      // 作成直後だけ平文のシークレットが出る。ラベルではなく実際の値で確認する
+      // （Garage が secret を返さなくても SecretOnceDialog のラベル自体は描かれるため）
       await expect(page.getByText(/を作成しました/)).toBeVisible({ timeout: 15_000 });
-      await expect(page.getByText("シークレットアクセスキー")).toBeVisible();
+      const keysResponse = await request.get("/api/keys", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const keys: { id: string; name: string }[] = await keysResponse.json();
+      const keyId = keys.find((it) => it.name === name)?.id;
+      if (!keyId) throw new Error(`作成した key が見つかりません: ${name}`);
+      const secretResponse = await request.get(`/api/keys/${keyId}?showSecret=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const { secretAccessKey }: { secretAccessKey: string } = await secretResponse.json();
+      await expect(page.getByText(secretAccessKey)).toBeVisible();
       await page.getByRole("button", { name: "閉じる" }).click({ force: true });
 
       // シークレット表示ダイアログが閉じてツリーが空になっているので取り戻す

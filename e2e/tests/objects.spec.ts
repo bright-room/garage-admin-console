@@ -35,6 +35,8 @@ async function deleteObjectIfExists(
 }
 
 test.describe("Objects", () => {
+  // buckets / keys と違い、既定のビューポートのままでよい。絞り込みで表示行数を
+  // 1 に落とせるため、操作対象のボタンが画面外に出ることが無い
   test("uploads, lists, downloads and deletes an object", async ({ page, request }) => {
     // アップロード + ダウンロード + ダイアログ 2 回分をまとめて 1 ケースに詰めるため、
     // 既定の 60 秒では足りないことがある
@@ -83,6 +85,8 @@ test.describe("Objects", () => {
       // InspectObject
       await page.getByRole("button", { name: "詳細" }).first().click({ force: true });
       await expect(page.getByText(/インライン格納|ブロック/)).toBeVisible({ timeout: 15_000 });
+      // InspectionDialog のタイトルは inspection.key なので、対象のファイル名まで確認する
+      await expect(page.getByText(fileName).first()).toBeVisible();
       await page.getByRole("button", { name: "閉じる" }).click({ force: true });
 
       // 詳細ダイアログが閉じてツリーが空になっているので取り戻す。
@@ -96,7 +100,13 @@ test.describe("Objects", () => {
 
       // 削除
       await page.getByRole("button", { name: "削除", exact: true }).first().click({ force: true });
+      const deleted = page.waitForResponse(
+        (it) => it.request().method() === "DELETE" && it.url().includes("/objects?key="),
+      );
       await page.getByRole("button", { name: "実行", exact: true }).click({ force: true });
+      // click() が返る時点では DELETE がまだ飛んでいないことがあるため、
+      // 応答を待ってから reload する（先に reload すると進行中の fetch を中断しうる）
+      expect((await deleted).ok()).toBe(true);
 
       // 削除確認ダイアログが閉じてツリーが空になっているので取り戻してから
       // 実際に消えたことを確認する（reload 前の toHaveCount(0) は空のツリーに

@@ -74,6 +74,9 @@ export async function openScreen(page: Page, path: string, token: string): Promi
  * テストごとに違う名前を作る。
  *
  * e2e は同じ Garage を使い回すため、前回の残骸と衝突しない名前が要る。
+ * prefix は spec ファイルごとに固有にすること。`playwright.config.ts` の
+ * `fullyParallel: false` はファイル内の直列化しか意味せず、spec ファイル
+ * 同士は並行実行されるため、prefix が同じだと衝突しうる。
  */
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}`;

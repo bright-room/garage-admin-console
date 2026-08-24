@@ -8579,3 +8579,29 @@ Phase 3 の計画を書くときに引き継ぐ事実を、この計画の末尾
 - `DataTable` / `ConfirmDialog` / `CopyButton` は Phase 3 の画面でもそのまま使える
 - `MultiResponse`（`:shared`、Phase 1）は Node / Worker / Block 系で本格的に使う。Phase 2 では概況の block error 数でしか使っていない
 - `ApiResult.Failure` がステータスを持つようになったため、Phase 3 の画面も 403 を `ProblemView` で扱える
+
+## Phase 3 への申し送り
+
+Phase 3 の計画を書くときに引き継ぐ事実を残す。
+
+**Phase 2 で作ったものの再利用**
+
+- `DataTable` / `ConfirmDialog` / `CopyButton` は Phase 3 の画面でもそのまま使える
+- `MultiResponse`（`:shared`、Phase 1）は Node / Worker / Block 系で本格的に使う。Phase 2 では概況の block error 数でしか使っていない
+- `ApiResult.Failure` がステータスを持つようになったため、Phase 3 の画面も 403 を `ProblemView` で扱える
+
+**e2e を書くときに踏む事実**
+
+- Compose のアクセシビリティツリーは `AlertDialog` を閉じると空になり、リロードするまで復活しない。`helpers.ts` の `afterDialog` がその回避策
+- 表の行は 1 つの `button` に畳まれ、ラベルは全セルの連結になる。隣接テキストも連結される。`{ exact: true }` はほぼ使えない
+- spec ファイルは並行実行されるため、`uniqueName` の prefix は spec ごとに固有にする
+- 「サイドバーの scope 無効表示」は現在の fixture では原理的に検証できない。`docker/init-garage.sh` の `dev-limited` の scope は `GetClusterHealth` / `ListBuckets` / `ListKeys` を含み、`NavItem` の `requiredOperation` をすべて満たすため 1 項目も無効にならない。検証するには `ListBuckets` を持たない 3 本目の fixture トークンが要る
+- ログインの往復（`openScreen` が毎テスト wasm を 2 回読む）は `page.addInitScript` で `sessionStorage` にトークンを入れれば 1 回に減らせる。テスト数が増える Phase 3 で効く
+
+**e2e が覆っていない Phase 2 の機能**
+
+- バケットの別名の追加・削除
+- キー権限の付与・全剥奪
+- 未完了アップロードの後始末
+- S3 縮退の 2 経路（`no-usable-key` / `bucket-not-addressable`。ただし実機で手動確認済み）
+- キーのインポートと更新
