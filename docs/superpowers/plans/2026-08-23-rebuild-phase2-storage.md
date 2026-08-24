@@ -239,7 +239,7 @@ git switch -c phase2/1-shared
 
 CORS と lifecycle のフィールド名は S3 の XML 由来で PascalCase である。Garage の他のフィールドは camelCase なので、ここだけ `@SerialName` を付ける。**「Phase 2 で先に確認した事実」の JSON をそのままテストの fixture にすること。**
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
 `shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/garage/BucketTest.kt`
 
@@ -357,12 +357,12 @@ class BucketTest {
 }
 ```
 
-- [ ] **Step 2: テストが失敗することを確認**
+- [x] **Step 2: テストが失敗することを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*BucketTest*'`
 Expected: FAIL（`BucketSummary` などが未定義でコンパイルできない）
 
-- [ ] **Step 3: モデルを書く**
+- [x] **Step 3: モデルを書く**
 
 `shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/Bucket.kt`
 
@@ -529,19 +529,19 @@ data class AbortIncompleteMultipartUpload(
 )
 ```
 
-- [ ] **Step 4: テストが通ることを確認**
+- [x] **Step 4: テストが通ることを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*BucketTest*'`
 Expected: PASS
 
-- [ ] **Step 5: wasmJs でも同じモデルが直列化できることを確認**
+- [x] **Step 5: wasmJs でも同じモデルが直列化できることを確認**
 
 Run: `CHROME_BIN=$(which chromium || which google-chrome) ./gradlew :shared:wasmJsBrowserTest`
 Expected: PASS
 
 `CHROME_BIN` が無い環境では headless Chrome が見つからず失敗する。その場合はこの Step を飛ばし、CI（`on-pull-request`）の結果で確認する。
 
-- [ ] **Step 6: コミット**
+- [x] **Step 6: コミット**
 
 ```bash
 git add shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/Bucket.kt shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/garage/BucketTest.kt
@@ -562,7 +562,7 @@ git commit -m "feat(shared): バケットのモデルを追加"
 
 `GetKeyInfo` のレスポンスは `secretAccessKey` を持つが、**これは `showSecretKey=true` を付けたときと、作成直後のレスポンスにだけ入る**。サーバーは既定でこのフラグを付けず、キー詳細の「表示」操作でのみ付ける（P2-7）。
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
 `shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/garage/AccessKeyTest.kt`
 
@@ -627,12 +627,12 @@ class AccessKeyTest {
 }
 ```
 
-- [ ] **Step 2: テストが失敗することを確認**
+- [x] **Step 2: テストが失敗することを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*AccessKeyTest*'`
 Expected: FAIL（`KeySummary` が未定義）
 
-- [ ] **Step 3: モデルを書く**
+- [x] **Step 3: モデルを書く**
 
 `shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/AccessKey.kt`
 
@@ -688,12 +688,12 @@ data class KeyBucket(
 }
 ```
 
-- [ ] **Step 4: テストが通ることを確認**
+- [x] **Step 4: テストが通ることを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*AccessKeyTest*'`
 Expected: PASS
 
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
 
 ```bash
 git add shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/AccessKey.kt shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/garage/AccessKeyTest.kt
@@ -722,7 +722,7 @@ git commit -m "feat(shared): アクセスキーのモデルを追加"
 
 `model/s3/` は spec §9 のポータブルな側であり、Garage 固有の型を参照しない。`ObjectInspection` は Garage の `InspectObject` 専用なので `model/garage/` に置く。この線引きは乗り換え時に捨てる範囲を明確にするためのもので、混ぜてはならない。
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
 `shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/s3/StoredObjectTest.kt`
 
@@ -837,12 +837,12 @@ class StorageRequestsTest {
 }
 ```
 
-- [ ] **Step 2: テストが失敗することを確認**
+- [x] **Step 2: テストが失敗することを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*StoredObjectTest*' --tests '*StorageRequestsTest*'`
 Expected: FAIL（型が未定義）
 
-- [ ] **Step 3: S3 のオブジェクトモデルを書く**
+- [x] **Step 3: S3 のオブジェクトモデルを書く**
 
 `shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/s3/StoredObject.kt`
 
@@ -904,7 +904,7 @@ fun parentPrefix(prefix: String): String? {
 }
 ```
 
-- [ ] **Step 4: `InspectObject` のモデルを書く**
+- [x] **Step 4: `InspectObject` のモデルを書く**
 
 `shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/ObjectInspection.kt`
 
@@ -952,7 +952,7 @@ data class ObjectBlock(
 )
 ```
 
-- [ ] **Step 5: リクエスト DTO と problem type を書く**
+- [x] **Step 5: リクエスト DTO と problem type を書く**
 
 `shared/src/commonMain/kotlin/net/brightroom/garage/shared/api/StorageRequests.kt`
 
@@ -1090,12 +1090,12 @@ object ProblemTypes {
 }
 ```
 
-- [ ] **Step 6: テストが通ることを確認**
+- [x] **Step 6: テストが通ることを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*StoredObjectTest*' --tests '*StorageRequestsTest*'`
 Expected: PASS
 
-- [ ] **Step 7: コミット**
+- [x] **Step 7: コミット**
 
 ```bash
 git add shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/s3/ shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/ObjectInspection.kt shared/src/commonMain/kotlin/net/brightroom/garage/shared/api/StorageRequests.kt shared/src/commonMain/kotlin/net/brightroom/garage/shared/api/ProblemTypes.kt shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/s3/ shared/src/commonTest/kotlin/net/brightroom/garage/shared/api/StorageRequestsTest.kt
@@ -1124,7 +1124,7 @@ Phase 1 の `Route.parse` はクエリを捨てていた（`normalize` が `?` �
 
 既存テスト `unknownPathBecomesNotFound` は `/buckets` が `NotFound` になることを期待している。このタスクで `/buckets` は実在のルートになるため、**そのケースは別の未知パスに差し替える**。
 
-- [ ] **Step 1: パーセントエンコードの失敗するテストを書く**
+- [x] **Step 1: パーセントエンコードの失敗するテストを書く**
 
 `shared/src/commonTest/kotlin/net/brightroom/garage/shared/navigation/PercentEncodingTest.kt`
 
@@ -1189,12 +1189,12 @@ class PercentEncodingTest {
 }
 ```
 
-- [ ] **Step 2: テストが失敗することを確認**
+- [x] **Step 2: テストが失敗することを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*PercentEncodingTest*'`
 Expected: FAIL（`percentEncode` が未定義）
 
-- [ ] **Step 3: パーセントエンコードを書く**
+- [x] **Step 3: パーセントエンコードを書く**
 
 `shared/src/commonMain/kotlin/net/brightroom/garage/shared/navigation/PercentEncoding.kt`
 
@@ -1264,12 +1264,12 @@ private fun hexDigit(char: Char?): Int? = when (char) {
 }
 ```
 
-- [ ] **Step 4: テストが通ることを確認**
+- [x] **Step 4: テストが通ることを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*PercentEncodingTest*'`
 Expected: PASS
 
-- [ ] **Step 5: ルートの失敗するテストを書く**
+- [x] **Step 5: ルートの失敗するテストを書く**
 
 `shared/src/commonTest/kotlin/net/brightroom/garage/shared/navigation/RouteTest.kt` の以下を差し替え・追加する。既存の他のテストはそのまま残す。
 
@@ -1339,12 +1339,12 @@ Expected: PASS
     }
 ```
 
-- [ ] **Step 6: テストが失敗することを確認**
+- [x] **Step 6: テストが失敗することを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*RouteTest*'`
 Expected: FAIL（`Route.Buckets` が未定義）
 
-- [ ] **Step 7: ルートを書き換える**
+- [x] **Step 7: ルートを書き換える**
 
 `shared/src/commonMain/kotlin/net/brightroom/garage/shared/navigation/Route.kt` を次の内容で置き換える。
 
@@ -1442,12 +1442,12 @@ sealed interface Route {
 }
 ```
 
-- [ ] **Step 8: テストが通ることを確認**
+- [x] **Step 8: テストが通ることを確認**
 
 Run: `./gradlew :shared:jvmTest`
 Expected: PASS（既存のテストも含めてすべて）
 
-- [ ] **Step 9: `:web` がまだコンパイルできることを確認**
+- [x] **Step 9: `:web` がまだコンパイルできることを確認**
 
 `App.kt` は `Route.Overview` / `Route.Login` / `Route.NotFound` だけを分岐しており、`when` は `else` を持たないため、ルートの追加でコンパイルエラーになる。**このタスクでは画面を作らないので、追加したルートは Phase 1 の概況にフォールバックさせておく**（Task 13 以降で本来の画面に差し替える）。
 
@@ -1475,14 +1475,14 @@ private fun AuthenticatedApp(router: RouterState) {
 Run: `./gradlew :web:compileKotlinWasmJs`
 Expected: BUILD SUCCESSFUL
 
-- [ ] **Step 10: コミット**
+- [x] **Step 10: コミット**
 
 ```bash
 git add shared/src/commonMain/kotlin/net/brightroom/garage/shared/navigation/ shared/src/commonTest/kotlin/net/brightroom/garage/shared/navigation/ web/src/wasmJsMain/kotlin/net/brightroom/garage/web/App.kt
 git commit -m "feat(shared): ストレージ画面のルートとクエリの解析を追加"
 ```
 
-- [ ] **Step 11: PR を出す**
+- [x] **Step 11: PR を出す**
 
 ```bash
 git push -u origin phase2/1-shared
@@ -1540,7 +1540,7 @@ Garage 側の呼び出し規約（OpenAPI から確認済み）:
 
 `UpdateBucketRequest`（`:shared`）は Garage の `UpdateBucketRequestBody` と同じ形なので、そのまま `encodeToJsonElement` して送れる。**変換関数を書かないこと。**
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
 `server/src/test/kotlin/net/brightroom/garage/server/garage/BucketOperationsTest.kt`
 
@@ -1783,12 +1783,12 @@ class BucketOperationsTest {
 }
 ```
 
-- [ ] **Step 2: テストが失敗することを確認**
+- [x] **Step 2: テストが失敗することを確認**
 
 Run: `./gradlew :server:test --tests '*BucketOperationsTest*'`
 Expected: FAIL（`listBuckets` が未定義）
 
-- [ ] **Step 3: 実装を書く**
+- [x] **Step 3: 実装を書く**
 
 `server/src/main/kotlin/net/brightroom/garage/server/garage/BucketOperations.kt`
 
@@ -1946,12 +1946,12 @@ private fun permissionBody(
 private data class CleanupResponse(val uploadsDeleted: Long)
 ```
 
-- [ ] **Step 4: テストが通ることを確認**
+- [x] **Step 4: テストが通ることを確認**
 
 Run: `./gradlew :server:test --tests '*BucketOperationsTest*'`
 Expected: PASS
 
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
 
 ```bash
 git add server/src/main/kotlin/net/brightroom/garage/server/garage/BucketOperations.kt server/src/test/kotlin/net/brightroom/garage/server/garage/BucketOperationsTest.kt
@@ -1995,7 +1995,7 @@ git commit -m "feat(server): バケット operation の型付きクライアン�
 
 **DELETE には本文を載せない**（P2-12）。alias はクエリで渡し、キーの剥奪は常に owner / read / write の全部を落とす（P2-11）。権限を部分的に減らしたいときは、外してから必要な権限で付け直す。
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
 `server/src/test/kotlin/net/brightroom/garage/server/api/BucketRoutesTest.kt`
 
@@ -2252,12 +2252,12 @@ class BucketRoutesTest {
 }
 ```
 
-- [ ] **Step 2: テストが失敗することを確認**
+- [x] **Step 2: テストが失敗することを確認**
 
 Run: `./gradlew :server:test --tests '*BucketRoutesTest*'`
 Expected: FAIL（`bucketRoutes` が未定義）
 
-- [ ] **Step 3: リクエスト取り出しのヘルパを足す**
+- [x] **Step 3: リクエスト取り出しのヘルパを足す**
 
 `server/src/main/kotlin/net/brightroom/garage/server/api/AuthContext.kt` の末尾に追加する。
 
@@ -2276,7 +2276,7 @@ fun ApplicationCall.queryParam(name: String): String =
         ?: throw InvalidRequestException("クエリに $name が必要です")
 ```
 
-- [ ] **Step 4: StatusPages に 400 の扱いを足す**
+- [x] **Step 4: StatusPages に 400 の扱いを足す**
 
 `server/src/main/kotlin/net/brightroom/garage/server/plugins/StatusPages.kt` の `exception<NotFoundException>` の隣に追加する。
 
@@ -2303,7 +2303,7 @@ import net.brightroom.garage.server.api.InvalidRequestException
 
 **`exception<Throwable>` より前に置くこと。** StatusPages は登録順ではなく型の近さで選ぶが、可読性のために既存の具体的なハンドラの並びに入れる。
 
-- [ ] **Step 5: ルートを書く**
+- [x] **Step 5: ルートを書く**
 
 `server/src/main/kotlin/net/brightroom/garage/server/api/BucketRoutes.kt`
 
@@ -2428,7 +2428,7 @@ fun Route.bucketRoutes(client: GarageAdminClient) {
 }
 ```
 
-- [ ] **Step 6: ルートを登録し、テスト用アプリにも足す**
+- [x] **Step 6: ルートを登録し、テスト用アプリにも足す**
 
 `server/src/main/kotlin/net/brightroom/garage/server/plugins/Routing.kt` の `routing` ブロックに 1 行足す。
 
@@ -2451,12 +2451,12 @@ fun Route.bucketRoutes(client: GarageAdminClient) {
         }
 ```
 
-- [ ] **Step 7: テストが通ることを確認**
+- [x] **Step 7: テストが通ることを確認**
 
 Run: `./gradlew :server:test`
 Expected: PASS（既存のテストも含めて）
 
-- [ ] **Step 8: コミット**
+- [x] **Step 8: コミット**
 
 ```bash
 git add server/src/main/kotlin/net/brightroom/garage/server/api/ server/src/main/kotlin/net/brightroom/garage/server/plugins/ server/src/test/kotlin/net/brightroom/garage/server/
@@ -2495,7 +2495,7 @@ Garage の `CreateKey` と `UpdateKey` は同じ本文（`UpdateKeyRequestBody`�
 | `neverExpires = true` | `{"neverExpires":true}` |
 | `expiration = <Instant>` | `{"expiration":"<RFC 3339>"}` |
 
-- [ ] **Step 1: 失敗するテストを書く**
+- [x] **Step 1: 失敗するテストを書く**
 
 `server/src/test/kotlin/net/brightroom/garage/server/api/KeyRoutesTest.kt`
 
@@ -2705,12 +2705,12 @@ class KeyRoutesTest {
 }
 ```
 
-- [ ] **Step 2: テストが失敗することを確認**
+- [x] **Step 2: テストが失敗することを確認**
 
 Run: `./gradlew :server:test --tests '*KeyRoutesTest*'`
 Expected: FAIL（`keyRoutes` が未定義）
 
-- [ ] **Step 3: operation を書く**
+- [x] **Step 3: operation を書く**
 
 `server/src/main/kotlin/net/brightroom/garage/server/garage/KeyOperations.kt`
 
@@ -2818,7 +2818,7 @@ private fun kotlinx.serialization.json.JsonObjectBuilder.putExpiration(
 }
 ```
 
-- [ ] **Step 4: ルートを書く**
+- [x] **Step 4: ルートを書く**
 
 `server/src/main/kotlin/net/brightroom/garage/server/api/KeyRoutes.kt`
 
@@ -2888,16 +2888,16 @@ fun Route.keyRoutes(client: GarageAdminClient) {
 
 **`/keys/import` は `/keys/{id}` より先に登録する。** Ktor は静的なセグメントを優先するため実際には順序に依存しないが、読み手のために並びを守る。
 
-- [ ] **Step 5: ルートを登録する**
+- [x] **Step 5: ルートを登録する**
 
 `plugins/Routing.kt` と `TestApplication.kt` の両方に `keyRoutes(client)` を足す。
 
-- [ ] **Step 6: テストが通ることを確認**
+- [x] **Step 6: テストが通ることを確認**
 
 Run: `./gradlew :server:test`
 Expected: PASS
 
-- [ ] **Step 7: 実機で通しの確認**
+- [x] **Step 7: 実機で通しの確認**
 
 ```bash
 docker compose up -d
@@ -2915,14 +2915,14 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/keys | jq
 
 Expected: `dev-bucket` と `dev-key` が返る。
 
-- [ ] **Step 8: コミット**
+- [x] **Step 8: コミット**
 
 ```bash
 git add server/src/main/kotlin/net/brightroom/garage/server/garage/KeyOperations.kt server/src/main/kotlin/net/brightroom/garage/server/api/KeyRoutes.kt server/src/main/kotlin/net/brightroom/garage/server/plugins/Routing.kt server/src/test/kotlin/net/brightroom/garage/server/
 git commit -m "feat(server): /api/keys を追加"
 ```
 
-- [ ] **Step 9: PR を出す**
+- [x] **Step 9: PR を出す**
 
 ```bash
 git push -u origin phase2/2-server-garage
@@ -2964,7 +2964,7 @@ git switch -c phase2/3-server-s3
 
 Ktor の設定デコーダは Boolean を `decodeString()` → `Boolean.parseBoolean` で読む（`AbstractMapConfigDecoder` を確認済み）。したがって `${GARAGE_S3_PATH_STYLE:true}` のような文字列展開でも `Boolean` のフィールドで受けられる。
 
-- [ ] **Step 1: 依存を足す**
+- [x] **Step 1: 依存を足す**
 
 `server/build.gradle.kts` の `dependencies` に 1 行足す。
 
@@ -2974,7 +2974,7 @@ Ktor の設定デコーダは Boolean を `decodeString()` → `Boolean.parseBoo
 
 `libs.versions.toml` は変更しない（`aws-sdk-s3 = { module = "aws.sdk.kotlin:s3", version.ref = "aws-sdk-kotlin" }` が既にある）。
 
-- [ ] **Step 2: 設定の失敗するテストを書く**
+- [x] **Step 2: 設定の失敗するテストを書く**
 
 `server/src/test/kotlin/net/brightroom/garage/server/config/AppConfigTest.kt` に追加する（既存のテストは残す）。
 
@@ -3006,12 +3006,12 @@ Ktor の設定デコーダは Boolean を `decodeString()` → `Boolean.parseBoo
     }
 ```
 
-- [ ] **Step 3: テストが失敗することを確認**
+- [x] **Step 3: テストが失敗することを確認**
 
 Run: `./gradlew :server:test --tests '*AppConfigTest*'`
 Expected: FAIL（`AppConfig.s3` が無い）
 
-- [ ] **Step 4: 設定を足す**
+- [x] **Step 4: 設定を足す**
 
 `server/src/main/kotlin/net/brightroom/garage/server/config/AppConfig.kt`
 
@@ -3066,12 +3066,12 @@ garage:
     pathStyle: ${GARAGE_S3_PATH_STYLE:true}
 ```
 
-- [ ] **Step 5: テストが通ることを確認**
+- [x] **Step 5: テストが通ることを確認**
 
 Run: `./gradlew :server:test --tests '*AppConfigTest*'`
 Expected: PASS
 
-- [ ] **Step 6: 資格情報の型と S3 クライアントの生成を書く**
+- [x] **Step 6: 資格情報の型と S3 クライアントの生成を書く**
 
 `server/src/main/kotlin/net/brightroom/garage/server/s3/S3Credentials.kt`
 
@@ -3133,12 +3133,12 @@ class S3ObjectStore(private val config: AppConfig.S3) {
 }
 ```
 
-- [ ] **Step 7: コンパイルを確認**
+- [x] **Step 7: コンパイルを確認**
 
 Run: `./gradlew :server:build -x test`
 Expected: BUILD SUCCESSFUL
 
-- [ ] **Step 8: 実機で往復できることを確認（Phase 2 の「初日の検証」）**
+- [x] **Step 8: 実機で往復できることを確認（Phase 2 の「初日の検証」）**
 
 `server/src/test/kotlin/net/brightroom/garage/server/s3/S3RoundTripManualTest.kt` を一時的に作り、dev の Garage に対して実行する。**確認できたらこのファイルは削除する**（CI では Garage が居ないため常設できない）。
 
@@ -3210,7 +3210,7 @@ Expected: PASS
 rm server/src/test/kotlin/net/brightroom/garage/server/s3/S3RoundTripManualTest.kt
 ```
 
-- [ ] **Step 9: コミット**
+- [x] **Step 9: コミット**
 
 ```bash
 git add server/build.gradle.kts server/src/main/kotlin/net/brightroom/garage/server/config/AppConfig.kt server/src/main/resources/application.yaml server/src/main/kotlin/net/brightroom/garage/server/s3/ server/src/test/kotlin/net/brightroom/garage/server/config/AppConfigTest.kt
@@ -3246,7 +3246,7 @@ spec §6.4 の規則をそのまま実装する。
 
 **キャッシュのキーに生のトークンを使ってはならない。** サーバーはトークンを保持しないという原則（spec §6.2）は、Map のキーであっても同じである。
 
-- [ ] **Step 1: キャッシュの失敗するテストを書く**
+- [x] **Step 1: キャッシュの失敗するテストを書く**
 
 `server/src/test/kotlin/net/brightroom/garage/server/s3/SecretCacheTest.kt`
 
@@ -3339,12 +3339,12 @@ class SecretCacheTest {
 }
 ```
 
-- [ ] **Step 2: テストが失敗することを確認**
+- [x] **Step 2: テストが失敗することを確認**
 
 Run: `./gradlew :server:test --tests '*SecretCacheTest*'`
 Expected: FAIL（`SecretCache` が未定義）
 
-- [ ] **Step 3: キャッシュを書く**
+- [x] **Step 3: キャッシュを書く**
 
 `server/src/main/kotlin/net/brightroom/garage/server/s3/SecretCache.kt`
 
@@ -3412,12 +3412,12 @@ fun hashToken(token: String): String = MessageDigest.getInstance("SHA-256")
     .joinToString("") { byte -> ((byte.toInt() and 0xFF) + 0x100).toString(16).substring(1) }
 ```
 
-- [ ] **Step 4: テストが通ることを確認**
+- [x] **Step 4: テストが通ることを確認**
 
 Run: `./gradlew :server:test --tests '*SecretCacheTest*'`
 Expected: PASS
 
-- [ ] **Step 5: 導出の失敗するテストを書く**
+- [x] **Step 5: 導出の失敗するテストを書く**
 
 `server/src/test/kotlin/net/brightroom/garage/server/s3/S3CredentialResolverTest.kt`
 
@@ -3664,12 +3664,12 @@ class S3CredentialResolverTest {
 }
 ```
 
-- [ ] **Step 6: テストが失敗することを確認**
+- [x] **Step 6: テストが失敗することを確認**
 
 Run: `./gradlew :server:test --tests '*S3CredentialResolverTest*'`
 Expected: FAIL（`S3CredentialResolver` が未定義）
 
-- [ ] **Step 7: 問題型と導出を書く**
+- [x] **Step 7: 問題型と導出を書く**
 
 `server/src/main/kotlin/net/brightroom/garage/server/s3/S3Problems.kt`
 
@@ -3758,12 +3758,12 @@ private fun List<BucketKey>.selectForObjectAccess(): BucketKey? = this
     )
 ```
 
-- [ ] **Step 8: テストが通ることを確認**
+- [x] **Step 8: テストが通ることを確認**
 
 Run: `./gradlew :server:test --tests '*S3CredentialResolverTest*'`
 Expected: PASS
 
-- [ ] **Step 9: コミット**
+- [x] **Step 9: コミット**
 
 ```bash
 git add server/src/main/kotlin/net/brightroom/garage/server/s3/ server/src/test/kotlin/net/brightroom/garage/server/s3/
@@ -3818,7 +3818,7 @@ S3 の失敗の写し方:
 | `NoSuchKey` | 404 | 「オブジェクトが見つかりません」 |
 | その他の `S3Exception` | 502 | 「ストレージへのアクセスに失敗しました」（**SDK のメッセージを載せない**） |
 
-- [ ] **Step 1: 変換の失敗するテストを書く**
+- [x] **Step 1: 変換の失敗するテストを書く**
 
 `server/src/test/kotlin/net/brightroom/garage/server/s3/S3ObjectStoreTest.kt`
 
@@ -3882,12 +3882,12 @@ class S3ObjectStoreTest {
 }
 ```
 
-- [ ] **Step 2: テストが失敗することを確認**
+- [x] **Step 2: テストが失敗することを確認**
 
 Run: `./gradlew :server:test --tests '*S3ObjectStoreTest*'`
 Expected: FAIL（`toListing` が未定義）
 
-- [ ] **Step 3: オブジェクト操作を書く**
+- [x] **Step 3: オブジェクト操作を書く**
 
 `server/src/main/kotlin/net/brightroom/garage/server/s3/S3ObjectStore.kt` を次の内容で置き換える。
 
@@ -4049,12 +4049,12 @@ internal fun ListObjectsV2Response.toListing(prefix: String, keyName: String): O
     )
 ```
 
-- [ ] **Step 4: テストが通ることを確認**
+- [x] **Step 4: テストが通ることを確認**
 
 Run: `./gradlew :server:test --tests '*S3ObjectStoreTest*'`
 Expected: PASS
 
-- [ ] **Step 5: problem の type を渡せるようにする**
+- [x] **Step 5: problem の type を渡せるようにする**
 
 `server/src/main/kotlin/net/brightroom/garage/server/api/AuthContext.kt` の `respondProblem` を次のようにする。
 
@@ -4097,7 +4097,7 @@ suspend fun ApplicationCall.respondProblem(
 class MissingContentLengthException : RuntimeException("Content-Length ヘッダが必要です")
 ```
 
-- [ ] **Step 6: StatusPages に S3 の失敗を足す**
+- [x] **Step 6: StatusPages に S3 の失敗を足す**
 
 `server/src/main/kotlin/net/brightroom/garage/server/plugins/StatusPages.kt` の `exception<Throwable>` より前に足す。
 
@@ -4155,7 +4155,7 @@ import net.brightroom.garage.shared.api.ProblemTypes
 
 **`NoSuchKey` は `S3Exception` のサブクラスなので、より具体的な方を先に書く。** StatusPages は登録順ではなく型の近さで選ぶが、読み手のために順序も合わせる。
 
-- [ ] **Step 7: ルートの失敗するテストを書く**
+- [x] **Step 7: ルートの失敗するテストを書く**
 
 `server/src/test/kotlin/net/brightroom/garage/server/api/ObjectRoutesTest.kt`
 
@@ -4329,7 +4329,7 @@ class ObjectRoutesTest {
 }
 ```
 
-- [ ] **Step 8: ルートを書く**
+- [x] **Step 8: ルートを書く**
 
 `server/src/main/kotlin/net/brightroom/garage/server/api/ObjectRoutes.kt`
 
@@ -4430,7 +4430,7 @@ fun Route.objectRoutes(
 }
 ```
 
-- [ ] **Step 9: ログアウトでキャッシュを捨てる**
+- [x] **Step 9: ログアウトでキャッシュを捨てる**
 
 `server/src/main/kotlin/net/brightroom/garage/server/api/SessionRoutes.kt` を次のようにする。Phase 1 で「Phase 2 で配線する」と残したコメントを実装で置き換える。
 
@@ -4465,7 +4465,7 @@ import net.brightroom.garage.server.s3.SecretCache
 import net.brightroom.garage.server.s3.hashToken
 ```
 
-- [ ] **Step 10: DI とルーティングを更新する**
+- [x] **Step 10: DI とルーティングを更新する**
 
 `server/src/main/kotlin/net/brightroom/garage/server/plugins/Di.kt`
 
@@ -4538,12 +4538,12 @@ fun ApplicationTestBuilder.garageApp(engine: MockEngine) {
 }
 ```
 
-- [ ] **Step 11: テストが通ることを確認**
+- [x] **Step 11: テストが通ることを確認**
 
 Run: `./gradlew :server:test`
 Expected: PASS
 
-- [ ] **Step 12: 実機で往復を確認**
+- [x] **Step 12: 実機で往復を確認**
 
 ```bash
 docker compose up -d
@@ -4570,7 +4570,7 @@ curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
 
 Expected: 204 → 一覧に `probe.txt` → 本文 `hello garage` → バージョン情報 → 204
 
-- [ ] **Step 13: コミット**
+- [x] **Step 13: コミット**
 
 ```bash
 git add server/src/main/kotlin/net/brightroom/garage/server/ server/src/test/kotlin/net/brightroom/garage/server/
@@ -4595,7 +4595,7 @@ spec §11 が求める後始末を行う。
 
 `dev-limited` の scope は `GetKeyInfo` を含まない。これにより「バケットとキーの一覧は見えるが、S3 ブラウザだけが縮退する」という spec §6.4 の状態を dev と CI で再現できる。
 
-- [ ] **Step 1: S3 資格情報の案内を消す**
+- [x] **Step 1: S3 資格情報の案内を消す**
 
 `docker/init-garage.sh` のアクセスキー作成部分から、`mise.toml` への案内を落とす。キー自体は `dev-key` として作り続ける（オブジェクト操作の権限付与に要る）。
 
@@ -4618,7 +4618,7 @@ else
 fi
 ```
 
-- [ ] **Step 2: scope を絞ったトークンを発行する**
+- [x] **Step 2: scope を絞ったトークンを発行する**
 
 `dev-console` トークンを作る部分の後ろに足す。
 
@@ -4649,7 +4649,7 @@ else
 fi
 ```
 
-- [ ] **Step 3: dev 環境を作り直して確認**
+- [x] **Step 3: dev 環境を作り直して確認**
 
 ```bash
 docker compose down -v
@@ -4659,7 +4659,7 @@ docker compose logs garage-init
 
 Expected: `Console login token:` と `Limited-scope token:` が表示され、`mise.toml` への案内が消えている
 
-- [ ] **Step 4: 縮退が再現することを確認**
+- [x] **Step 4: 縮退が再現することを確認**
 
 ```bash
 ./gradlew :server:run
@@ -4675,14 +4675,14 @@ curl -s -H "Authorization: Bearer $LIMITED" "http://localhost:8080/api/buckets/$
 
 Expected: バケット一覧は 200 で返り、オブジェクト一覧は 403 の problem details（`operation: "GetKeyInfo"`）になる
 
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
 
 ```bash
 git add docker/init-garage.sh
 git commit -m "chore(dev): S3 資格情報の案内を削除し scope 制限トークンを発行する"
 ```
 
-- [ ] **Step 6: PR を出す**
+- [x] **Step 6: PR を出す**
 
 ```bash
 git push -u origin phase2/3-server-s3
@@ -4731,7 +4731,7 @@ Phase 1 の `ApiResult.Failure` は problem details しか持たない。Phase 2
 
 `:web` は `ktor-http` を既に持っているので、`HttpStatusCode` をそのまま使える。
 
-- [ ] **Step 1: API クライアントを拡張する**
+- [x] **Step 1: API クライアントを拡張する**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/api/ApiClient.kt` を次の内容で置き換える。
 
@@ -4892,7 +4892,7 @@ private fun <T> decode(
 }
 ```
 
-- [ ] **Step 2: 既存の呼び出し元を直す**
+- [x] **Step 2: 既存の呼び出し元を直す**
 
 `SessionState.kt` の `signOut` は `postEmpty` を使っている。
 
@@ -4907,7 +4907,7 @@ private fun <T> decode(
 Run: `./gradlew :web:compileKotlinWasmJs`
 Expected: BUILD SUCCESSFUL
 
-- [ ] **Step 3: 状態表示を足す**
+- [x] **Step 3: 状態表示を足す**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/components/StateViews.kt` に追加する（既存の `LoadingView` / `ErrorView` / `DeniedView` はそのまま）。
 
@@ -4968,7 +4968,7 @@ import net.brightroom.garage.shared.api.ProblemDetails
 import net.brightroom.garage.web.api.displayMessage
 ```
 
-- [ ] **Step 4: 表を書く**
+- [x] **Step 4: 表を書く**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/components/DataTable.kt`
 
@@ -5104,7 +5104,7 @@ fun <T> DataTable(
 }
 ```
 
-- [ ] **Step 5: 確認ダイアログを書く**
+- [x] **Step 5: 確認ダイアログを書く**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/components/ConfirmDialog.kt`
 
@@ -5180,7 +5180,7 @@ fun ConfirmDialog(
 }
 ```
 
-- [ ] **Step 6: コピーボタンを書く**
+- [x] **Step 6: コピーボタンを書く**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/components/CopyButton.kt`
 
@@ -5221,7 +5221,7 @@ fun CopyButton(value: String, label: String = "コピー") {
 }
 ```
 
-- [ ] **Step 7: interop が動くことを確認する**
+- [x] **Step 7: interop が動くことを確認する**
 
 `js()` は関数本体としてのみ使え、その関数の引数を参照できる。この形が wasmJs で通ることを、画面を作る前に確かめておく。
 
@@ -5237,7 +5237,7 @@ Expected: BUILD SUCCESSFUL
 private external fun writeToClipboard(value: String)
 ```
 
-- [ ] **Step 8: コミット**
+- [x] **Step 8: コミット**
 
 ```bash
 git add web/src/wasmJsMain/kotlin/net/brightroom/garage/web/api/ApiClient.kt web/src/wasmJsMain/kotlin/net/brightroom/garage/web/session/SessionState.kt web/src/wasmJsMain/kotlin/net/brightroom/garage/web/components/
@@ -5258,7 +5258,7 @@ git commit -m "feat(web): 表・確認ダイアログ・コピーの共通部品
 
 spec §8.5 のとおり、バケット一覧は**手動更新のみ**でポーリングしない。
 
-- [ ] **Step 1: 画面を書く**
+- [x] **Step 1: 画面を書く**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/buckets/BucketsScreen.kt`
 
@@ -5491,7 +5491,7 @@ private fun CreateBucketDialog(onDismiss: () -> Unit, onCreated: () -> Unit) {
 
 `displayMessage` の import を足す（`net.brightroom.garage.web.api.displayMessage`）。
 
-- [ ] **Step 2: App に接続する**
+- [x] **Step 2: App に接続する**
 
 `App.kt` の `AuthenticatedApp` を更新する。
 
@@ -5501,7 +5501,7 @@ private fun CreateBucketDialog(onDismiss: () -> Unit, onCreated: () -> Unit) {
 
 Task 4 で置いた仮のフォールバックから `Route.Buckets` を外す。
 
-- [ ] **Step 3: 動作を確認**
+- [x] **Step 3: 動作を確認**
 
 ```bash
 docker compose up -d
@@ -5512,7 +5512,7 @@ docker compose up -d
 
 Expected: `dev-bucket` が一覧に出る。作成ダイアログから新しいバケットを作れる。
 
-- [ ] **Step 4: コミット**
+- [x] **Step 4: コミット**
 
 ```bash
 git add web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/buckets/BucketsScreen.kt web/src/wasmJsMain/kotlin/net/brightroom/garage/web/App.kt
@@ -5541,7 +5541,7 @@ git commit -m "feat(web): バケット一覧と作成を追加"
 4. 未完了アップロードの後始末（P2-9）
 5. バケットの削除（名前のタイプ入力を要求。spec §8.6）
 
-- [ ] **Step 1: 画面を書く**
+- [x] **Step 1: 画面を書く**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/buckets/BucketDetailScreen.kt`
 
@@ -5995,7 +5995,7 @@ private fun MaintenanceSection(
 }
 ```
 
-- [ ] **Step 2: App に接続する**
+- [x] **Step 2: App に接続する**
 
 ```kotlin
             is Route.BucketDetail -> BucketDetailScreen(
@@ -6008,11 +6008,11 @@ private fun MaintenanceSection(
 
 `when` の分岐は `is Route.BucketDetail ->` で受けるため、`val route = router.current` の形を保つこと。
 
-- [ ] **Step 3: 動作を確認**
+- [x] **Step 3: 動作を確認**
 
 `http://localhost:8080/buckets` からバケットを開き、別名の追加と削除、キー権限の付与と剥奪、後始末、削除の確認ダイアログ（名前を打たないと押せないこと）を確認する。
 
-- [ ] **Step 4: コミット**
+- [x] **Step 4: コミット**
 
 ```bash
 git add web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/buckets/BucketDetailScreen.kt web/src/wasmJsMain/kotlin/net/brightroom/garage/web/App.kt
@@ -6039,7 +6039,7 @@ git commit -m "feat(web): バケット詳細を追加"
 
 S3 の lifecycle filter は、条件が 1 つならフィルタ直下に、2 つ以上なら `And` の中に置く決まりがある。**この差は画面に出さない。** 変換は `:shared` の純粋関数に閉じ、`jvmTest` で検証する（`And` の入れ子は 1 段まで。P2-5）。
 
-- [ ] **Step 1: フィルタ変換の失敗するテストを書く**
+- [x] **Step 1: フィルタ変換の失敗するテストを書く**
 
 `shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/garage/LifecycleFiltersTest.kt`
 
@@ -6116,12 +6116,12 @@ class LifecycleFiltersTest {
 }
 ```
 
-- [ ] **Step 2: テストが失敗することを確認**
+- [x] **Step 2: テストが失敗することを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*LifecycleFiltersTest*'`
 Expected: FAIL（`FilterConditions` が未定義）
 
-- [ ] **Step 3: 変換を書く**
+- [x] **Step 3: 変換を書く**
 
 `shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/LifecycleFilters.kt`
 
@@ -6173,12 +6173,12 @@ fun LifecycleFilter?.toConditions(): FilterConditions {
 }
 ```
 
-- [ ] **Step 4: テストが通ることを確認**
+- [x] **Step 4: テストが通ることを確認**
 
 Run: `./gradlew :shared:jvmTest --tests '*LifecycleFiltersTest*'`
 Expected: PASS
 
-- [ ] **Step 5: 設定フォームを書く**
+- [x] **Step 5: 設定フォームを書く**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/buckets/BucketSettingsForm.kt`
 
@@ -6603,7 +6603,7 @@ private fun LifecycleForm(bucket: BucketInfo, onSave: (UpdateBucketRequest) -> U
 
 `CorsDraft` と `LifecycleDraft` で `by mutableStateOf` を使うため、`androidx.compose.runtime.getValue` と `setValue` の import が要る。
 
-- [ ] **Step 6: 詳細画面に差し込む**
+- [x] **Step 6: 詳細画面に差し込む**
 
 `BucketDetailScreen.kt` の
 
@@ -6631,7 +6631,7 @@ private fun LifecycleForm(bucket: BucketInfo, onSave: (UpdateBucketRequest) -> U
 
 `import net.brightroom.garage.shared.api.UpdateBucketRequest` を足す。
 
-- [ ] **Step 7: 実機で「触っていない設定を巻き込まない」ことを確認**
+- [x] **Step 7: 実機で「触っていない設定を巻き込まない」ことを確認**
 
 ```bash
 ./gradlew :server:run
@@ -6644,7 +6644,7 @@ private fun LifecycleForm(bucket: BucketInfo, onSave: (UpdateBucketRequest) -> U
 
 Expected: それぞれの保存が他の設定に影響しない
 
-- [ ] **Step 8: コミット**
+- [x] **Step 8: コミット**
 
 ```bash
 git add shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/LifecycleFilters.kt shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/garage/LifecycleFiltersTest.kt web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/buckets/
@@ -6670,7 +6670,7 @@ git commit -m "feat(web): バケットの設定フォームを追加"
 
 キー詳細の secret は「表示」ボタンで取りにいく（P2-7）。押すまでサーバーは secret を受け取らない。
 
-- [ ] **Step 1: 一覧を書く**
+- [x] **Step 1: 一覧を書く**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/keys/KeysScreen.kt`
 
@@ -6999,7 +6999,7 @@ private fun SecretOnceDialog(key: KeyInfo, onDismiss: () -> Unit) {
 }
 ```
 
-- [ ] **Step 2: 詳細を書く**
+- [x] **Step 2: 詳細を書く**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/keys/KeyDetailScreen.kt`
 
@@ -7284,7 +7284,7 @@ private fun KeySection(title: String, content: @Composable () -> Unit) {
 }
 ```
 
-- [ ] **Step 3: App に接続する**
+- [x] **Step 3: App に接続する**
 
 ```kotlin
             Route.Keys -> KeysScreen(onOpen = { router.navigate(Route.KeyDetail(it)) })
@@ -7296,18 +7296,18 @@ private fun KeySection(title: String, content: @Composable () -> Unit) {
             )
 ```
 
-- [ ] **Step 4: 動作を確認**
+- [x] **Step 4: 動作を確認**
 
 キーを作成し、secret が一度だけ出ること、詳細の「表示」で取り直せること、権限を持つバケットからバケット詳細へ飛べること、削除の確認ダイアログが出ることを確認する。
 
-- [ ] **Step 5: コミット**
+- [x] **Step 5: コミット**
 
 ```bash
 git add web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/keys/ web/src/wasmJsMain/kotlin/net/brightroom/garage/web/App.kt
 git commit -m "feat(web): アクセスキーの一覧と詳細を追加"
 ```
 
-- [ ] **Step 6: PR を出す**
+- [x] **Step 6: PR を出す**
 
 ```bash
 git push -u origin phase2/4-web-storage
@@ -7349,7 +7349,7 @@ git switch -c phase2/5-web-objects
 
 **ただし `ApiClient` を通らないので、401 の扱いが素通しになる。** これを避けるため、JS からは常に `"<status> <body>"` の形で結果を返し、Kotlin 側で `ApiClient` と同じ判断（401 ならセッション破棄、403 なら scope 不足の表示、それ以外は problem details の文言）を行う。
 
-- [ ] **Step 1: interop が動くことを先に確かめる**
+- [x] **Step 1: interop が動くことを先に確かめる**
 
 `@JsFun` と `Promise.await()` が wasmJs で使えることを、画面を書く前に確認する。Phase 1 の `js("document.hidden")` は引数なしの単純な形だったので、ここは別途の確認が要る。
 
@@ -7479,7 +7479,7 @@ Expected: BUILD SUCCESSFUL
 
 どちらの場合も、**JS 側で `fetch` を完結させる方針自体は変えない**。wasm にバイナリを渡す形に戻すと、ファイル全体が wasm のメモリに載る。
 
-- [ ] **Step 2: 画面を書く**
+- [x] **Step 2: 画面を書く**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/objects/ObjectBrowserScreen.kt`
 
@@ -7895,7 +7895,7 @@ private fun problemMessage(failure: TransferOutcome.Failed): String {
 }
 ```
 
-- [ ] **Step 3: App に接続する**
+- [x] **Step 3: App に接続する**
 
 ```kotlin
             is Route.Objects -> ObjectBrowserScreen(
@@ -7908,7 +7908,7 @@ private fun problemMessage(failure: TransferOutcome.Failed): String {
 
 Task 4 で置いた仮のフォールバックはこれで空になる。`when` から消すこと。
 
-- [ ] **Step 4: 実機で転送を確認**
+- [x] **Step 4: 実機で転送を確認**
 
 ```bash
 docker compose up -d
@@ -7924,13 +7924,13 @@ docker compose up -d
 7. `a/b/c.txt` のような名前でアップロードし、フォルダとして辿れること、URL に `?prefix=a%2F` が乗ること、リロードで同じ場所に戻ることを確認する
 8. 日本語のファイル名でも 2〜6 が通ることを確認する
 
-- [ ] **Step 5: 縮退を確認**
+- [x] **Step 5: 縮退を確認**
 
 `Limited-scope token`（Task 11 で発行）でログインし、オブジェクト画面を開く。
 
 Expected: バケット一覧は見えるが、オブジェクト画面は「このトークンでは参照できません（必要な scope: GetKeyInfo）」になる
 
-- [ ] **Step 6: コミット**
+- [x] **Step 6: コミット**
 
 ```bash
 git add web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/objects/ web/src/wasmJsMain/kotlin/net/brightroom/garage/web/App.kt
@@ -7957,7 +7957,7 @@ spec §8.2 のストレージのグループを作る。「オブジェクト」
 
 概況のストレージ数値からバケットとキーの一覧へ飛べるようにする（spec §8.3 の「各項目は該当画面へドリルダウンできる」）。
 
-- [ ] **Step 1: サイドバーの構成を書き換える**
+- [x] **Step 1: サイドバーの構成を書き換える**
 
 `web/src/wasmJsMain/kotlin/net/brightroom/garage/web/navigation/NavItem.kt`
 
@@ -8026,7 +8026,7 @@ val navGroups: List<NavGroup> = listOf(
 )
 ```
 
-- [ ] **Step 2: サイドバーの選択判定を直す**
+- [x] **Step 2: サイドバーの選択判定を直す**
 
 `Sidebar.kt` の `NavigationDrawerItem` の `selected` を書き換える。
 
@@ -8043,7 +8043,7 @@ val navGroups: List<NavGroup> = listOf(
                 )
 ```
 
-- [ ] **Step 3: 概況にドリルダウンを足す**
+- [x] **Step 3: 概況にドリルダウンを足す**
 
 `OverviewScreen.kt` を次のように変える。
 
@@ -8124,14 +8124,14 @@ private fun FigureCard(
 
 `import androidx.compose.foundation.clickable` と `import net.brightroom.garage.shared.navigation.Route` を足す。
 
-- [ ] **Step 4: App の呼び出しを直す**
+- [x] **Step 4: App の呼び出しを直す**
 
 ```kotlin
             Route.Overview -> OverviewScreen(onNavigate = router::navigate)
             Route.Login -> OverviewScreen(onNavigate = router::navigate)
 ```
 
-- [ ] **Step 5: 動作を確認**
+- [x] **Step 5: 動作を確認**
 
 - サイドバーからバケット・キーに移動できる
 - `/objects/...` を開いている間、サイドバーの「オブジェクト」が選択状態になる
@@ -8139,14 +8139,14 @@ private fun FigureCard(
 - 概況の「バケット」「アクセスキー」のカードから一覧へ飛べる
 - 制限トークンでログインすると、scope に無い項目が「（権限なし）」になる
 
-- [ ] **Step 6: コミット**
+- [x] **Step 6: コミット**
 
 ```bash
 git add web/src/wasmJsMain/kotlin/net/brightroom/garage/web/navigation/ web/src/wasmJsMain/kotlin/net/brightroom/garage/web/screens/overview/OverviewScreen.kt web/src/wasmJsMain/kotlin/net/brightroom/garage/web/App.kt
 git commit -m "feat(web): ストレージのナビゲーションと概況からの導線を追加"
 ```
 
-- [ ] **Step 7: PR を出す**
+- [x] **Step 7: PR を出す**
 
 ```bash
 git push -u origin phase2/5-web-objects
@@ -8186,7 +8186,7 @@ Compose はキャンバスに描画するため、DOM のセレクタでは要�
 
 テストは同一 spec ファイル内では順序実行されるが（`playwright.config.ts` の `fullyParallel: false`）、spec ファイル同士は複数 worker で並行実行される。**同じ Garage を共有するため、作るものの名前は毎回変える**。
 
-- [ ] **Step 1: ヘルパを足す**
+- [x] **Step 1: ヘルパを足す**
 
 `e2e/tests/helpers.ts` に追加する（既存の `adminToken` / `waitForLoginScreen` / `signIn` はそのまま）。
 
@@ -8226,7 +8226,7 @@ export function uniqueName(prefix: string): string {
 }
 ```
 
-- [ ] **Step 2: バケットの e2e を書く**
+- [x] **Step 2: バケットの e2e を書く**
 
 `e2e/tests/buckets.spec.ts`
 
@@ -8288,7 +8288,7 @@ test.describe("Buckets", () => {
 });
 ```
 
-- [ ] **Step 3: キーの e2e を書く**
+- [x] **Step 3: キーの e2e を書く**
 
 `e2e/tests/keys.spec.ts`
 
@@ -8330,7 +8330,7 @@ test.describe("Access keys", () => {
 });
 ```
 
-- [ ] **Step 4: オブジェクトの e2e を書く**
+- [x] **Step 4: オブジェクトの e2e を書く**
 
 `e2e/tests/objects.spec.ts`
 
@@ -8456,7 +8456,7 @@ test.describe("Objects", () => {
 });
 ```
 
-- [ ] **Step 5: CI に制限トークンを渡す**
+- [x] **Step 5: CI に制限トークンを渡す**
 
 `.github/workflows/on-pull-request.yaml` の "Resolve console admin token" ステップの後ろに追加する。
 
@@ -8489,7 +8489,7 @@ test.describe("Objects", () => {
           GARAGE_S3_PATH_STYLE: "true"
 ```
 
-- [ ] **Step 6: ローカルで e2e を通す**
+- [x] **Step 6: ローカルで e2e を通す**
 
 ```bash
 docker compose down -v
@@ -8508,14 +8508,14 @@ Expected: 既存の login / navigation / overview に加えて、buckets / keys 
 
 **落ちたテストは飛ばさない。** Compose のキャンバス描画は要素の出現が遅れるため、タイムアウト不足で落ちることがある。その場合は待ち方を直す（Phase 1 の `signIn` が入力の反映を待っているのと同じ考え方）。**待ちの問題なのか実装の問題なのかを見極めてから直すこと。**
 
-- [ ] **Step 7: コミット**
+- [x] **Step 7: コミット**
 
 ```bash
 git add e2e/tests/ .github/workflows/on-pull-request.yaml
 git commit -m "test(e2e): バケット・キー・オブジェクトのテストを追加"
 ```
 
-- [ ] **Step 8: PR を出す**
+- [x] **Step 8: PR を出す**
 
 ```bash
 git push -u origin phase2/6-e2e
@@ -8534,43 +8534,51 @@ gh pr create --title "test(e2e): Phase 2 のパリティを確認する" --body 
 
 **機能**
 
-- [ ] バケットの一覧・作成・詳細・削除ができる。削除はバケット名のタイプ入力を要求する
-- [ ] バケットのグローバル別名を追加・削除できる
-- [ ] バケットのキー権限を付与・全剥奪できる
-- [ ] バケットの上限・公開・CORS・ライフサイクルを編集でき、**それぞれの保存が他の設定を巻き込まない**
-- [ ] 未完了アップロードの後始末ができる
-- [ ] アクセスキーの一覧・作成・インポート・更新・削除ができる
-- [ ] キーのシークレットは作成直後と「表示」の操作でだけ現れる
-- [ ] オブジェクトの一覧・アップロード・ダウンロード・削除ができ、フォルダを辿れる
-- [ ] オブジェクトの詳細（`InspectObject`）を見られる
-- [ ] 表示中のフォルダが URL に載り、リロードとブックマークで同じ場所に戻る
-- [ ] サイドバーにストレージのグループがあり、概況からバケットとキーの一覧へ飛べる
+- [x] バケットの一覧・作成・詳細・削除ができる。削除はバケット名のタイプ入力を要求する
+- [x] バケットのグローバル別名を追加・削除できる
+- [x] バケットのキー権限を付与・全剥奪できる
+- [x] バケットの上限・公開・CORS・ライフサイクルを編集でき、**それぞれの保存が他の設定を巻き込まない**
+- [x] 未完了アップロードの後始末ができる
+- [x] アクセスキーの一覧・作成・インポート・更新・削除ができる
+- [x] キーのシークレットは作成直後と「表示」の操作でだけ現れる
+- [x] オブジェクトの一覧・アップロード・ダウンロード・削除ができ、フォルダを辿れる
+- [x] オブジェクトの詳細（`InspectObject`）を見られる
+- [x] 表示中のフォルダが URL に載り、リロードとブックマークで同じ場所に戻る
+- [x] サイドバーにストレージのグループがあり、概況からバケットとキーの一覧へ飛べる
 
 **縮退（spec §6.3–6.5）**
 
-- [ ] `GetKeyInfo` を持たないトークンでは、S3 ブラウザだけが「このトークンでは参照できません」になり、他の画面は通常どおり描ける
-- [ ] read 以上の権限を持つキーが無いバケットでは、その旨とバケット設定への導線が出る
-- [ ] 別名の無いバケットでは、S3 でアドレスできない旨とバケット設定への導線が出る
-- [ ] scope に無い項目はサイドバーで無効表示になる
+- [x] `GetKeyInfo` を持たないトークンでは、S3 ブラウザだけが「このトークンでは参照できません」になり、他の画面は通常どおり描ける
+- [x] read 以上の権限を持つキーが無いバケットでは、その旨とバケット設定への導線が出る
+- [x] 別名の無いバケットでは、S3 でアドレスできない旨とバケット設定への導線が出る
+- [x] scope に無い項目はサイドバーで無効表示になる
 
 **秘密の扱い（spec §6.2, §6.4）**
 
-- [ ] サーバーは admin token を保持しない。キャッシュのキーも SHA-256 のハッシュである
-- [ ] S3 の secret access key はブラウザに返らない（キー詳細の「表示」で明示的に取得する場合を除く）
-- [ ] ログに admin token も secret も出ない
-- [ ] ログアウトでサーバーのキャッシュが破棄される
+- [x] サーバーは admin token を保持しない。キャッシュのキーも SHA-256 のハッシュである
+- [x] S3 の secret access key はブラウザに返らない（キー詳細の「表示」で明示的に取得する場合を除く）
+- [x] ログに admin token も secret も出ない
+- [x] ログアウトでサーバーのキャッシュが破棄される
 
 **テスト**
 
-- [ ] `./gradlew build` が通る（`:shared` の wasmJs テストを含む）
-- [ ] `:server` のテストが、キー選択規則・バケット名解決・キャッシュの TTL と破棄・`UpdateBucket` の部分更新・S3 縮退の 3 経路を覆っている
-- [ ] e2e（login / navigation / overview / buckets / keys / objects）がローカルと CI の双方で通る
+- [x] `./gradlew build` が通る（`:shared` の wasmJs テストを含む）
+- [x] `:server` のテストが、キー選択規則・バケット名解決・キャッシュの TTL と破棄・`UpdateBucket` の部分更新・S3 縮退の 3 経路を覆っている
+- [x] e2e（login / navigation / overview / buckets / keys / objects）がローカルと CI の双方で通る
 
 **後始末**
 
-- [ ] `docker/init-garage.sh` から S3 資格情報の案内が消え、`Limited-scope token` を発行している
-- [ ] Task 8 の手動確認用テスト（`S3RoundTripManualTest`）がリポジトリに残っていない
-- [ ] 6 つの PR がすべて main にマージされている
+- [x] `docker/init-garage.sh` から S3 資格情報の案内が消え、`Limited-scope token` を発行している
+- [x] Task 8 の手動確認用テスト（`S3RoundTripManualTest`）がリポジトリに残っていない
+- [x] 6 つの PR がすべて main にマージされている
+
+**完了判定の根拠（2026-08-24）**
+
+- 6 つの PR は `#76` / `#79` / `#80` / `#82` / `#83` / `#84`。すべて main にマージ済みで、`on-merge` と `security` は成功している
+- `./gradlew clean build` を `CHROME_BIN` 付きでローカル実行し、`:shared:wasmJsBrowserTest` を含めて成功
+- e2e はローカルで 22 件すべて成功（`login` 4 / `navigation` 7 / `overview` 5 / `buckets` 2 / `keys` 1 / `objects` 3）。CI 側は各 PR の `on-pull-request` で同じスイートが通っている
+- 機能と秘密の扱いは、各 Task のテストとレビュー、および Task 8 / 10 / 15 の実機確認で確かめたもので、完了判定にあたって手動での再確認はしていない
+- 縮退の 4 項目のうち、e2e が覆っているのは `GetKeyInfo` を持たないトークンの経路だけである。`no-usable-key` と `bucket-not-addressable` は Task 10 の実機確認どまり、「scope に無い項目の無効表示」は実装済みだが後述のとおり現在の fixture では検証できない
 
 **Phase 3 への申し送り**
 
@@ -8597,6 +8605,7 @@ Phase 3 の計画を書くときに引き継ぐ事実を残す。
 - spec ファイルは並行実行されるため、`uniqueName` の prefix は spec ごとに固有にする
 - 「サイドバーの scope 無効表示」は現在の fixture では原理的に検証できない。`docker/init-garage.sh` の `dev-limited` の scope は `GetClusterHealth` / `ListBuckets` / `ListKeys` を含み、`NavItem` の `requiredOperation` をすべて満たすため 1 項目も無効にならない。検証するには `ListBuckets` を持たない 3 本目の fixture トークンが要る
 - ログインの往復（`openScreen` が毎テスト wasm を 2 回読む）は `page.addInitScript` で `sessionStorage` にトークンを入れれば 1 回に減らせる。テスト数が増える Phase 3 で効く
+- `E2E_LIMITED_TOKEN` は `dev-limited` を作る前の `init-garage.sh` で初期化した Garage には存在しない。`docker compose down -v` で作り直すか、`CreateAdminToken` を同じ scope で直接叩いて補う
 
 **e2e が覆っていない Phase 2 の機能**
 
