@@ -13,6 +13,7 @@ import net.brightroom.garage.server.api.nodeRoutes
 import net.brightroom.garage.server.api.objectRoutes
 import net.brightroom.garage.server.api.overviewRoutes
 import net.brightroom.garage.server.api.sessionRoutes
+import net.brightroom.garage.server.api.workerRoutes
 import net.brightroom.garage.server.garage.GarageAdminClient
 import net.brightroom.garage.server.s3.S3CredentialResolver
 import net.brightroom.garage.server.s3.S3ObjectStore
@@ -35,6 +36,7 @@ fun Application.configureRouting() {
             layoutRoutes(client)
             nodeRoutes(client)
             objectRoutes(client, resolver, objectStore)
+            workerRoutes(client)
         }
     }
 }
