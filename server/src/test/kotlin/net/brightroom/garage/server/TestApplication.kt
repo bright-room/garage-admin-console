@@ -5,6 +5,7 @@ import io.ktor.server.config.MapApplicationConfig
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.testing.ApplicationTestBuilder
+import net.brightroom.garage.server.api.adminTokenRoutes
 import net.brightroom.garage.server.api.blockRoutes
 import net.brightroom.garage.server.api.bucketRoutes
 import net.brightroom.garage.server.api.clusterRoutes
@@ -48,6 +49,7 @@ fun ApplicationTestBuilder.garageApp(engine: MockEngine, cache: SecretCache = Se
         routing {
             route("/api") {
                 sessionRoutes(client, cache)
+                adminTokenRoutes(client)
                 blockRoutes(client)
                 bucketRoutes(client)
                 clusterRoutes(client)
