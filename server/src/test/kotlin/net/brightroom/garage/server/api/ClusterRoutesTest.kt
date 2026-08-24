@@ -20,6 +20,7 @@ import net.brightroom.garage.shared.api.ConnectNodeResult
 import net.brightroom.garage.shared.api.ProblemDetails
 import net.brightroom.garage.shared.model.garage.ClusterHealthStatus
 import net.brightroom.garage.shared.model.garage.ClusterStatistics
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -43,7 +44,9 @@ class ClusterRoutesTest {
 
     @Test
     fun combinesStatusAndHealth() = testApplication {
-        val called = mutableListOf<String>()
+        // GetClusterStatus / GetClusterHealth は並列に呼ばれる。MockEngine のハンドラは
+        // 別スレッドから同時に書き込みうるため、スレッドセーフなコレクションを使う
+        val called = ConcurrentLinkedQueue<String>()
         garageApp(
             MockEngine { request ->
                 val operation = request.url.encodedPath.substringAfterLast('/')
