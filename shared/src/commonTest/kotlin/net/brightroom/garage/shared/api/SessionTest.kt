@@ -4,6 +4,7 @@ import net.brightroom.garage.shared.model.garage.AdminToken
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SessionTest {
@@ -42,5 +43,24 @@ class SessionTest {
         assertEquals("alice", session.name)
         assertEquals(listOf("ListKeys"), session.scope)
         assertFalse(session.expired)
+    }
+
+    @Test
+    fun carriesTokenIdIntoSession() {
+        val token = AdminToken(
+            name = "alice",
+            scope = listOf("*"),
+            expired = false,
+            id = "29251efb",
+        )
+
+        assertEquals("29251efb", token.toSession().id)
+    }
+
+    @Test
+    fun configurationDerivedTokenHasNoId() {
+        val token = AdminToken(name = "admin_token (from daemon configuration)", scope = listOf("*"), expired = false)
+
+        assertNull(token.toSession().id)
     }
 }
