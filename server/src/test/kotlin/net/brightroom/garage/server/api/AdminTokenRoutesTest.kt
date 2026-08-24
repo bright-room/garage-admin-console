@@ -58,6 +58,35 @@ class AdminTokenRoutesTest {
     }
 
     @Test
+    fun getsTokenById() = testApplication {
+        var operation = ""
+        var id: String? = null
+        garageApp(
+            MockEngine { request ->
+                operation = request.url.encodedPath.substringAfterLast('/')
+                id = request.url.parameters["id"]
+                respond(
+                    """{"id":"29251efb","created":"2026-08-24T08:38:16.773Z","name":"dev-limited",
+                        "expiration":null,"expired":false,"scope":["ListBuckets"]}""",
+                    HttpStatusCode.OK,
+                    jsonHeaders,
+                )
+            },
+        )
+
+        val response = client.get("/api/admin-tokens/29251efb") {
+            header(HttpHeaders.Authorization, "Bearer tok")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals("GetAdminTokenInfo", operation)
+        assertEquals("29251efb", id)
+        val token = GarageJson.decodeFromString<AdminToken>(response.bodyAsText())
+        assertEquals("dev-limited", token.name)
+        assertEquals(listOf("ListBuckets"), token.scope)
+    }
+
+    @Test
     fun createsTokenAndReturnsSecretOnce() = testApplication {
         var sent = ""
         garageApp(
