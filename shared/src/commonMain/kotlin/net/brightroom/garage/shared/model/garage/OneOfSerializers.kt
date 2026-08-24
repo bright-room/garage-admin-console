@@ -14,11 +14,18 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.double
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
 /**
@@ -78,5 +85,87 @@ object WorkerStateSerializer : JsonShapeSerializer<WorkerState>("WorkerState") {
         is WorkerState.Throttled -> buildJsonObject {
             putJsonObject(THROTTLED) { put(DURATION_SECS, value.durationSecs) }
         }
+    }
+}
+
+object ZoneRedundancySerializer : JsonShapeSerializer<ZoneRedundancy>("ZoneRedundancy") {
+    private const val MAXIMUM = "maximum"
+    private const val AT_LEAST = "atLeast"
+
+    override fun fromJson(json: Json, element: JsonElement): ZoneRedundancy {
+        element.asStringOrNull()?.let { name ->
+            if (name == MAXIMUM) return ZoneRedundancy.Maximum
+
+            throw SerializationException("未知のゾーン冗長度: $name")
+        }
+
+        val atLeast = (element as? JsonObject)?.get(AT_LEAST)
+            ?: throw SerializationException("ゾーン冗長度として解釈できません")
+
+        return ZoneRedundancy.AtLeast(atLeast.jsonPrimitive.int)
+    }
+
+    override fun toJson(json: Json, value: ZoneRedundancy): JsonElement = when (value) {
+        ZoneRedundancy.Maximum -> JsonPrimitive(MAXIMUM)
+        is ZoneRedundancy.AtLeast -> buildJsonObject { put(AT_LEAST, value.zones) }
+    }
+}
+
+object NodeRoleChangeSerializer : JsonShapeSerializer<NodeRoleChange>("NodeRoleChange") {
+    private const val ID = "id"
+    private const val REMOVE = "remove"
+    private const val ZONE = "zone"
+    private const val TAGS = "tags"
+    private const val CAPACITY = "capacity"
+
+    override fun fromJson(json: Json, element: JsonElement): NodeRoleChange {
+        val obj = element as? JsonObject ?: throw SerializationException("ロールの変更はオブジェクトでなければならない")
+        val id = obj.getValue(ID).jsonPrimitive.content
+
+        if (REMOVE in obj) return NodeRoleChange.Remove(id)
+
+        return NodeRoleChange.Assign(
+            id = id,
+            zone = obj.getValue(ZONE).jsonPrimitive.content,
+            tags = obj[TAGS]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty(),
+            capacity = obj[CAPACITY]?.jsonPrimitive?.longOrNull,
+        )
+    }
+
+    override fun toJson(json: Json, value: NodeRoleChange): JsonElement = buildJsonObject {
+        put(ID, value.id)
+
+        when (value) {
+            is NodeRoleChange.Remove -> put(REMOVE, true)
+
+            is NodeRoleChange.Assign -> {
+                put(ZONE, value.zone)
+                putJsonArray(TAGS) { value.tags.forEach { add(it) } }
+                // gateway ノードは capacity を持たない。null を送ると容量 0 の
+                // ストレージノードとして解釈されうるため、キーごと落とす
+                value.capacity?.let { put(CAPACITY, it) }
+            }
+        }
+    }
+}
+
+object LayoutPreviewSerializer : JsonShapeSerializer<LayoutPreview>("LayoutPreview") {
+    private const val ERROR = "error"
+
+    override fun fromJson(json: Json, element: JsonElement): LayoutPreview {
+        val obj = element as? JsonObject ?: throw SerializationException("preview はオブジェクトでなければならない")
+
+        val serializer = if (ERROR in obj) {
+            LayoutPreview.Failed.serializer()
+        } else {
+            LayoutPreview.Computed.serializer()
+        }
+
+        return json.decodeFromJsonElement(serializer, obj)
+    }
+
+    override fun toJson(json: Json, value: LayoutPreview): JsonElement = when (value) {
+        is LayoutPreview.Failed -> json.encodeToJsonElement(LayoutPreview.Failed.serializer(), value)
+        is LayoutPreview.Computed -> json.encodeToJsonElement(LayoutPreview.Computed.serializer(), value)
     }
 }
