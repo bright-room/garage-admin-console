@@ -274,6 +274,8 @@ spec に書かれていない、実装中に迷いうる点を先に決める。
 | P3-13 | `LaunchRepairOperation` の `repairType` は OpenAPI の 10 種すべてを選べるようにする。`scrub` だけは `{"scrub": "start"\|"pause"\|"resume"\|"cancel"}` の 2 段選択になる | 修復の種類を絞る根拠が無い。危険度の説明は spec §8.6 が求める確認ダイアログの本文で担保する |
 | P3-14 | ブロックの再同期は「全件再試行（`{"all": true}`）」と「選んだブロックの再試行（`{"blockHashes": [...]}`）」の両方を出す。`PurgeBlocks` は選んだブロックのみ | `RetryBlockResync` の oneOf は両形を定義しており、運用上どちらも要る。`PurgeBlocks` に「全件」は無い（参照を消す操作であり、全件は事故にしかならない） |
 | P3-15 | `/api/cluster` は Phase 1 の `/api/overview` を置き換えない。概況は概況のまま残し、`/nodes` 画面が `/api/cluster` を使う | `/api/overview` はセクション単位の縮退という別の契約を持つ（spec §7.2）。統合すると両方の契約が壊れる |
+| P3-16 | `layout.spec.ts` を Playwright の別プロジェクトに分け、他の spec の後に走らせる | レイアウトを stage している間、概況の異常帯に「未適用の変更があります」が出る（`Overview.alerts()`）。並行実行のままだと `overview.spec.ts` の「異常はありません」が壊れ、`retries: 2` に隠れた不安定さになる |
+| P3-17 | **ダイアログを跨いだ後に「画面の状態として持たれているもの」を e2e で確かめない。** 検証が要る場合は API のテストに回し、UI テストはダイアログが開くところまでに留める | Compose のツリーはダイアログを閉じると空になり、取り戻すには `page.reload()` が要る。しかしリロードは画面の状態を消す。この 2 つは両立しない。該当するのは Admin token の一度きりの secret 表示と、ノード接続の結果 |
 
 ---
 
@@ -349,6 +351,7 @@ spec に書かれていない、実装中に迷いうる点を先に決める。
 | `tests/layout.spec.ts` | 新規 | 旧 `layout.spec.ts` のパリティ + stage → preview → revert |
 | `tests/maintenance.spec.ts` | 新規 | ワーカーとブロック |
 | `tests/tokens.spec.ts` | 新規 | Admin token と scope 縮退のサイドバー表示 |
+| `playwright.config.ts` | 改修 | `layout.spec.ts` を他の spec の後に走らせるプロジェクト分割（P3-16） |
 
 **dev / CI**
 
@@ -658,6 +661,7 @@ git commit -m "feat(shared): ワーカー状態の oneOf を扱う serializer �
 - Create: `shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/LayoutPreview.kt`
 - Create: `shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/ClusterStatistics.kt`
 - Modify: `shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/OneOfSerializers.kt`（`ZoneRedundancySerializer` / `NodeRoleChangeSerializer` / `LayoutPreviewSerializer` を足す）
+- Modify: `server/src/test/kotlin/net/brightroom/garage/server/api/OverviewServiceTest.kt`（`stagedRoleChanges` の fixture を実形に直す）
 - Test: `shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/garage/LayoutModelTest.kt`
 
 **Interfaces:**
@@ -675,7 +679,7 @@ git commit -m "feat(shared): ワーカー状態の oneOf を扱う serializer �
   - `data class ComputationStat(...)` / `data class ComputationStatZone(...)`
   - `data class ClusterStatistics(freeform: String, dataAvail: Long?, metadataAvail: Long?, incompleteAvailInfo: Boolean, bucketCount: Long, totalObjectCount: Long, totalObjectBytes: Long)`
 
-**Phase 1 の `ClusterLayout` を置き換える。** Phase 1 は `stagedRoleChanges: List<JsonElement>` で件数だけを見ていた。`OverviewService` は `.size` しか呼んでいないため、この置き換えでコード変更は要らない（Step 8 で確認する）。
+**Phase 1 の `ClusterLayout` を置き換える。** Phase 1 は `stagedRoleChanges: List<JsonElement>` で件数だけを見ていた。`OverviewService` は `.size` しか呼んでいないためコード変更は要らないが、**`OverviewServiceTest` の fixture は `NodeRoleChange` として解釈できない形なので直す必要がある**（Step 8）。
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -1143,17 +1147,41 @@ data class ClusterStatistics(
 )
 ```
 
-- [ ] **Step 8: テストが通ることを確認する**
+- [ ] **Step 8: `OverviewServiceTest` の fixture を実形に直す**
+
+`OverviewService.kt` は `stagedRoleChanges.size` しか見ていないためコード変更は要らない。**しかし `OverviewServiceTest` の fixture は壊れる。** 現在の値は件数を作るためだけの形で、`NodeRoleChange` としては解釈できない:
+
+```kotlin
+    private val layoutBody = """
+        {"version":7,"roles":[],"parameters":{"zoneRedundancy":"maximum"},"partitionSize":1024,
+         "stagedRoleChanges":[{"id":"abc"},{"id":"def"}]}
+    """.trimIndent()
+```
+
+`{"id":"abc"}` は `remove` も `zone` も持たないため、`NodeRoleChangeSerializer` が割り当ての分岐に入って `zone` の取り出しで失敗する。実機と同じ 2 形に直す:
+
+```kotlin
+    private val layoutBody = """
+        {"version":7,"roles":[],"parameters":{"zoneRedundancy":"maximum"},"partitionSize":1024,
+         "stagedRoleChanges":[{"id":"abc","remove":true},
+                              {"id":"def","zone":"dc1","tags":[],"capacity":1024}]}
+    """.trimIndent()
+```
+
+件数は 2 のままなので、`LayoutSummary.stagedChanges` を見ているアサーションは変わらない。
+
+- [ ] **Step 9: テストが通ることを確認する**
 
 Run: `./gradlew :shared:jvmTest :server:test`
-Expected: PASS。`OverviewServiceTest` は `ClusterLayout` の置き換え後も無変更で通る（`stagedRoleChanges.size` しか使っていないため）。もし `OverviewService.kt` がコンパイルエラーになった場合は、`stagedRoleChanges` 以外を参照していないか確認すること。
+Expected: PASS
 
-- [ ] **Step 9: コミットする**
+- [ ] **Step 10: コミットする**
 
 ```bash
 ./gradlew spotlessApply
 git add shared/src/commonMain/kotlin/net/brightroom/garage/shared/model/garage/ \
-        shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/garage/LayoutModelTest.kt
+        shared/src/commonTest/kotlin/net/brightroom/garage/shared/model/garage/LayoutModelTest.kt \
+        server/src/test/kotlin/net/brightroom/garage/server/api/OverviewServiceTest.kt
 git commit -m "feat(shared): レイアウトのモデルと oneOf の serializer を追加"
 ```
 
@@ -7588,6 +7616,7 @@ git commit -m "test(e2e): 3 本目の fixture トークンを足しログイン�
 - Create: `e2e/tests/maintenance.spec.ts`
 - Create: `e2e/tests/tokens.spec.ts`
 - Modify: `e2e/tests/navigation.spec.ts`
+- Modify: `e2e/playwright.config.ts`
 
 **Interfaces:**
 - Consumes: `helpers.ts` の `adminToken` / `restrictedToken` / `openScreen` / `uniqueName` / `afterDialog`
@@ -7595,7 +7624,7 @@ git commit -m "test(e2e): 3 本目の fixture トークンを足しログイン�
 
 **Phase 2 の申し送りを踏まえる**
 
-- Compose のアクセシビリティツリーは `AlertDialog` を閉じると空になる。ダイアログを跨いだ後は必ず `afterDialog(page)` を通す
+- Compose のアクセシビリティツリーは `AlertDialog` を閉じると空になる。ダイアログを跨いだ後は必ず `afterDialog(page)` を通す。**`afterDialog` はリロードなので画面の状態も消える。ダイアログの後に画面の状態を確かめたい場合は API のテストに回す**（P3-17）
 - 表の行は 1 つの `button` に畳まれ、ラベルは全セルの連結になる。`{ exact: true }` はほぼ使えない
 - spec ファイルは並行実行されるため、`uniqueName` の prefix は spec ごとに固有にする（`nodes-` / `layout-` / `maint-` / `tok-`）
 - 概況や表は横スクロールの `Row` にあるため、必要なら `page.setViewportSize({ width: 1600, height: 720 })` で収める
@@ -7610,7 +7639,34 @@ git commit -m "test(e2e): 3 本目の fixture トークンを足しログイン�
 - `MultiResponse.error` が非空になる経路
 - ワーカーの `busy` / `done` / `throttled`
 
-- [ ] **Step 1: `nodes.spec.ts` を書く**
+- [ ] **Step 1: `layout.spec.ts` を他の spec と同時に走らせないようにする**
+
+レイアウトを stage している間、概況の異常帯に「レイアウト v… に N 件の未適用の変更があります」が出る（`Overview.alerts()`）。spec ファイルは並行実行されるため、このままだと `overview.spec.ts` の「異常はありません」が壊れる。`retries: 2` があるので落ちたり通ったりし、原因が分かりにくい不安定さになる。**先に手を打つ**（P3-16）。
+
+`e2e/playwright.config.ts` の `projects` を差し替える:
+
+```ts
+  projects: [
+    {
+      name: "chromium",
+      testIgnore: /layout\.spec\.ts/,
+      use: { browserName: "chromium" },
+    },
+    {
+      // レイアウトを stage している間、概況の異常帯に「未適用の変更」が出る。
+      // 他の spec と同時に走らせると overview.spec.ts の「異常はありません」が
+      // 壊れるため、すべてが終わってから単独で走らせる
+      name: "layout",
+      testMatch: /layout\.spec\.ts/,
+      dependencies: ["chromium"],
+      use: { browserName: "chromium" },
+    },
+  ],
+```
+
+**`dependencies` は Playwright のプロジェクト依存である。** `chromium` プロジェクトが全件終わってから `layout` が始まる。
+
+- [ ] **Step 2: `nodes.spec.ts` を書く**
 
 Create `e2e/tests/nodes.spec.ts`:
 
@@ -7678,23 +7734,47 @@ test.describe("Nodes", () => {
     await expect(page.getByRole("button", { name: "停止ノードを飛ばす" })).toHaveCount(0);
   });
 
-  test("reports the failure when connecting to a node that does not exist", async ({ page }) => {
+  test("opens the connect dialog and accepts an address", async ({ page }) => {
     await page.getByRole("button", { name: "ノードを接続" }).click({ force: true });
 
+    await expect(page.getByText(/1 行に 1 件/)).toBeVisible();
     await page.getByRole("textbox").last().fill("0000@127.0.0.1:19999", { force: true });
-    await page.getByRole("button", { name: "実行" }).click({ force: true });
 
-    // 到達できないアドレスなので必ず失敗する。結果はリロードで消えるため、
-    // reopen する前にここで確認する
-    await expect(page.getByText("接続の結果")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("失敗", { exact: true })).toBeVisible();
+    // 実行の結果は画面の状態にしか無く、UI からは確かめられない（下の注記）。
+    // ここはダイアログが開いて入力を受け付けるところまでを見る
+    await page.getByRole("button", { name: "キャンセル" }).click({ force: true });
+    await reopen(page);
+  });
+
+  test("reports a connection failure over the api", async ({ request }) => {
+    // 到達できないアドレスなので必ず失敗する
+    const response = await request.post("/api/cluster/connect", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { nodes: ["0000000000000000000000000000000000000000000000000000000000000000@127.0.0.1:19999"] },
+    });
+
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    expect(body).toHaveLength(1);
+    expect(body[0].success).toBe(false);
+    expect(body[0].node).toContain("127.0.0.1:19999");
+    expect(typeof body[0].error).toBe("string");
+  });
+
+  test("rejects a connect request with no nodes", async ({ request }) => {
+    const response = await request.post("/api/cluster/connect", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { nodes: [] },
+    });
+
+    expect(response.status()).toBe(400);
   });
 });
 ```
 
-**最後のテストで `reopen` を呼ばないのは意図的である。** 接続の結果は画面の状態として持たれており、`afterDialog` のリロードで消える。テストはこの 1 件で終わるため、ツリーを取り戻す必要が無い。
+**接続の結果を UI で確かめない理由。** ダイアログを閉じるとアクセシビリティツリーが空になり、取り戻すには `page.reload()` が要る。しかしリロードすると接続の結果（画面の状態）が消える。**「ダイアログを跨いだ後に、画面の状態として持たれているものを確かめる」ことは、この制約のもとでは原理的にできない。** 結果の検証は API 経由で行い、UI テストはダイアログが開くところまでに留める。**この判断は Task 21 の他の画面にも一律に適用する。**
 
-- [ ] **Step 2: `layout.spec.ts` を書く**
+- [ ] **Step 3: `layout.spec.ts` を書く**
 
 Create `e2e/tests/layout.spec.ts`:
 
@@ -7806,7 +7886,7 @@ test.describe("Layout", () => {
 
 **`getByRole("textbox").nth(n)` は脆い。** 画面のフォームが増えると番号がずれる。**まず `getByLabel("ゾーン")` などのラベル指定を試し、Compose のツリーがラベルを出さない場合にだけ `nth` を使うこと。** どちらにしたかをコメントに残す。
 
-- [ ] **Step 3: `maintenance.spec.ts` を書く**
+- [ ] **Step 4: `maintenance.spec.ts` を書く**
 
 Create `e2e/tests/maintenance.spec.ts`:
 
@@ -7906,7 +7986,7 @@ test.describe("Blocks", () => {
 
 **`page.getByRole("textbox").nth(2)` はここでも脆い。** 変数の並びは名前の昇順（`lifecycle-last-completed` / `resync-tranquility` / `resync-worker-count` / `scrub-corruptions_detected` / …）である。**実際に走らせて何番目が `scrub-tranquility` かを確かめ、番号ではなく安定した指定に置き換えられるならそうすること。** 置き換えられない場合は、番号の根拠をコメントに残す。
 
-- [ ] **Step 4: `tokens.spec.ts` を書く**
+- [ ] **Step 5: `tokens.spec.ts` を書く**
 
 Create `e2e/tests/tokens.spec.ts`:
 
@@ -7934,32 +8014,86 @@ test.describe("Admin tokens", () => {
     await expect(page.getByText("設定ファイル由来").first()).toBeVisible();
   });
 
-  test("creates a token, shows the secret once, then deletes it", async ({ page }) => {
+  test("creates a token from the dialog and lists it", async ({ page, request }) => {
     const name = uniqueName("tok");
 
     await page.getByRole("button", { name: "トークンを作成" }).click({ force: true });
     await page.getByRole("textbox").first().fill(name, { force: true });
     await page.getByRole("button", { name: "作成" }).click({ force: true });
+
+    // ダイアログを跨ぐとツリーが空になる。リロードで取り戻す。
+    // 一度だけ表示される secret はこのリロードで消えるため、ここでは確かめない
+    // （検証は下の API のテストで行う）
     await afterDialog(page);
 
-    // secret は作成直後に一度だけ出る
-    await expect(page.getByText(new RegExp(`「${name}」を作成しました`))).toBeVisible({
-      timeout: 30_000,
+    await expect(page.getByText(new RegExp(name))).toBeVisible({ timeout: 30_000 });
+
+    // 後始末は API で行う。削除の UI 経路は次のテストが見る
+    const list = await request.get("/api/admin-tokens", {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    await expect(page.getByText(/この値が表示されるのは一度だけです/)).toBeVisible();
-    await expect(page.getByRole("button", { name: /コピー/ })).toBeVisible();
+    const created = (await list.json()).find((it: { name: string }) => it.name === name);
+    expect(created).toBeDefined();
+    await request.delete(`/api/admin-tokens/${created.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  });
 
-    // 一覧に出ること
-    await expect(page.getByText(new RegExp(name))).toBeVisible();
+  test("requires typing the name before deleting", async ({ page, request }) => {
+    const name = uniqueName("tok");
 
-    // 削除する。名前のタイプ入力を求められる
+    // 削除の対象は API で用意する。作成の UI 経路は前のテストが見ている
+    const create = await request.post("/api/admin-tokens", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { name, scope: ["GetCurrentAdminTokenInfo"] },
+    });
+    const id = (await create.json()).token.id;
+
+    await page.reload();
+    await expect(page.getByText(new RegExp(name))).toBeVisible({ timeout: 30_000 });
+
     await page.getByRole("button", { name: "削除" }).last().click({ force: true });
+
     await expect(page.getByText("トークンを削除")).toBeVisible();
-    await page.getByRole("textbox").last().fill(name, { force: true });
-    await page.getByRole("button", { name: "実行" }).click({ force: true });
+    await expect(page.getByText(new RegExp(`確認のため「${name}」と入力してください`))).toBeVisible();
+    await page.getByRole("button", { name: "キャンセル" }).click({ force: true });
     await afterDialog(page);
 
-    await expect(page.getByText(new RegExp(name))).toHaveCount(0, { timeout: 30_000 });
+    await request.delete(`/api/admin-tokens/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  });
+
+  /**
+   * 一度だけ返る secret を API で確かめる。
+   *
+   * UI では確かめられない。ダイアログを閉じるとツリーが空になり、取り戻すための
+   * リロードで secret の表示（画面の状態）が消えるためである。
+   */
+  test("returns the secret token exactly once", async ({ request }) => {
+    const name = uniqueName("tok");
+
+    const create = await request.post("/api/admin-tokens", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { name, scope: ["GetCurrentAdminTokenInfo"] },
+    });
+
+    expect(create.status()).toBe(200);
+    const created = await create.json();
+    expect(typeof created.secretToken).toBe("string");
+    expect(created.secretToken.length).toBeGreaterThan(0);
+    expect(created.token.name).toBe(name);
+
+    // 取り直しても secret は返らない
+    const fetched = await request.get(`/api/admin-tokens/${created.token.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect((await fetched.json()).secretToken).toBeUndefined();
+
+    const deleted = await request.delete(`/api/admin-tokens/${created.token.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(deleted.status()).toBe(204);
   });
 
   test("rejects a token with no scope over the api", async ({ request }) => {
@@ -8015,7 +8149,7 @@ test.describe("Scope degradation", () => {
 });
 ```
 
-- [ ] **Step 5: `navigation.spec.ts` に Phase 3 の遷移を足す**
+- [ ] **Step 6: `navigation.spec.ts` に Phase 3 の遷移を足す**
 
 `navigation.spec.ts` の describe の末尾に足す:
 
@@ -8058,7 +8192,7 @@ test.describe("Scope degradation", () => {
 
 **「ノード」はサイドバーと `/nodes` 画面の見出しの両方に出る。** `{ exact: true }` でも複数一致するなら `.first()` を足すこと。
 
-- [ ] **Step 6: e2e をローカルで通す**
+- [ ] **Step 7: e2e をローカルで通す**
 
 ```bash
 docker compose down -v && docker compose up -d
@@ -8068,10 +8202,10 @@ mise run e2e
 
 Expected: Phase 2 までの 22 件に Phase 3 の分が加わって全件通る。**落ちたテストは、期待値を実際の描画に合わせて直すか、ロケータを安定した指定に変える。** 検証している内容自体を薄めないこと。
 
-- [ ] **Step 7: コミットして PR を出す**
+- [ ] **Step 8: コミットして PR を出す**
 
 ```bash
-git add e2e/tests/
+git add e2e/tests/ e2e/playwright.config.ts
 git commit -m "test(e2e): Phase 3 のパリティを確認する"
 git push -u origin phase3/6-e2e
 gh pr create --title "test(e2e): Phase 3 のパリティを確認する (Task 20-21)" --body "$(cat <<'EOF'
@@ -8083,6 +8217,7 @@ gh pr create --title "test(e2e): Phase 3 のパリティを確認する (Task 20
 - ワーカー・ブロック・Admin token の画面と、確認ダイアログの導線
 - サイドバーの scope 無効表示を、`ListBuckets` を持たない 3 本目の fixture トークンで初めて検証した（Phase 2 の申し送り）
 - ログインを `addInitScript` 方式に変え、1 テストあたりの wasm 読み込みを 1 回にした
+- `layout.spec.ts` を Playwright の別プロジェクトに分けた。stage 中は概況の異常帯に「未適用の変更」が出るため、並行実行のままだと `overview.spec.ts` が壊れる
 
 ## 覆っていないもの
 
@@ -8136,6 +8271,8 @@ EOF
 - [ ] `:server` のテストが、`repairType` の 2 形・`RetryBlockResync` の 2 形・`PurgeBlocks` の配列本文・`MultiResponse` の部分失敗を覆っている
 - [ ] e2e がローカルと CI の双方で通る
 - [ ] サイドバーの scope 無効表示が e2e で検証されている
+- [ ] `layout.spec.ts` が他の spec の後に単独で走る（`overview.spec.ts` と干渉しない）
+- [ ] ダイアログを跨いだ後に画面の状態を見るテストが 1 つも無い（P3-17）
 
 **後始末**
 
@@ -8160,4 +8297,6 @@ Phase 4（最終パリティ確認と CI 調整）の計画を書くときに引
 - `JsonShapeSerializer`（`:shared`）は oneOf を持つ Garage の型を扱う共通の土台である。今後 Garage が oneOf を増やしたらここに足す
 - `MultiResponse` を返す operation は 10 個ある。すべて `node=*` 固定で呼んでいる（P3-11）。ノードを選ぶ必要が出たら `garage/` の `allNodes` を引数に変える
 - `PreviewClusterLayoutChanges` に副作用が無いことは実機で確認済みであり、e2e にも入っている
+- ダイアログを跨いだ後に画面の状態を確かめる経路は、Compose のツリーの制約により e2e では取れない（P3-17）。UI テストを増やす前にこの制約を思い出すこと
+- `layout.spec.ts` は Playwright の別プロジェクトになっている。e2e を足すときは、概況の異常帯を動かす操作が他の spec と衝突しないかを確かめる
 - 単一ノードの dev では作れない状態が 5 つある。複数ノードの compose を用意するかどうかは Phase 4 の判断に委ねる
