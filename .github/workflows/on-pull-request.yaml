@@ -64,6 +64,20 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "E2E_ADMIN_TOKEN=$TOKEN" >> "$GITHUB_ENV"
 
+      - name: Resolve limited-scope token
+        run: |
+          TOKEN=$(docker compose -f compose.ci.yaml logs garage-init \
+            | grep 'Limited-scope token:' \
+            | sed 's/.*Limited-scope token: //' \
+            | tr -d '\r')
+          if [ -z "$TOKEN" ]; then
+            echo "failed to resolve limited-scope token from garage-init logs" >&2
+            docker compose -f compose.ci.yaml logs garage-init >&2
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "E2E_LIMITED_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
       - name: Set up Java
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
@@ -80,7 +94,11 @@ jobs:
         env:
           # サーバーは admin token も S3 資格情報も保持しない。
           # トークンは利用者がブラウザで入力し、リクエストごとに転送される。
+          # S3 の資格情報は admin token から導出する（spec §6.4）。
           GARAGE_ADMIN_ENDPOINT: http://localhost:3903
+          GARAGE_S3_ENDPOINT: http://localhost:3900
+          GARAGE_S3_REGION: garage
+          GARAGE_S3_PATH_STYLE: "true"
         run: |
           java -jar server/build/libs/garage-admin-console-all.jar &
           timeout 60 bash -c 'until curl -sf http://localhost:8080/ > /dev/null 2>&1; do sleep 2; done'
