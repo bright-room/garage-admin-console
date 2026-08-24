@@ -8,6 +8,7 @@ import net.brightroom.garage.server.api.OverviewService
 import net.brightroom.garage.server.api.bucketRoutes
 import net.brightroom.garage.server.api.clusterRoutes
 import net.brightroom.garage.server.api.keyRoutes
+import net.brightroom.garage.server.api.layoutRoutes
 import net.brightroom.garage.server.api.objectRoutes
 import net.brightroom.garage.server.api.overviewRoutes
 import net.brightroom.garage.server.api.sessionRoutes
@@ -30,6 +31,7 @@ fun Application.configureRouting() {
             bucketRoutes(client)
             clusterRoutes(client)
             keyRoutes(client)
+            layoutRoutes(client)
             objectRoutes(client, resolver, objectStore)
         }
     }
