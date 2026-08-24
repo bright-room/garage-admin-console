@@ -44,3 +44,51 @@ export async function signIn(page: Page, token: string): Promise<void> {
     timeout: 15_000,
   });
 }
+
+/**
+ * scope を絞った admin token。
+ *
+ * `docker compose logs garage-init` の "Limited-scope token:" から取る。
+ * GetKeyInfo を持たないため、S3 ブラウザだけが縮退する。
+ */
+export function limitedToken(): string {
+  const token = process.env.E2E_LIMITED_TOKEN;
+
+  if (!token) {
+    throw new Error(
+      "E2E_LIMITED_TOKEN が未設定です。docker compose logs garage-init から取得してください",
+    );
+  }
+
+  return token;
+}
+
+/** ログインしてから目的の画面へ移動する。 */
+export async function openScreen(page: Page, path: string, token: string): Promise<void> {
+  await page.goto("/");
+  await signIn(page, token);
+  await page.goto(path);
+}
+
+/**
+ * テストごとに違う名前を作る。
+ *
+ * e2e は同じ Garage を使い回すため、前回の残骸と衝突しない名前が要る。
+ * prefix は spec ファイルごとに固有にすること。`playwright.config.ts` の
+ * `fullyParallel: false` はファイル内の直列化しか意味せず、spec ファイル
+ * 同士は並行実行されるため、prefix が同じだと衝突しうる。
+ */
+export function uniqueName(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}`;
+}
+
+/**
+ * ダイアログを閉じた後にアクセシビリティツリーを取り戻す。
+ *
+ * Compose のツリーは AlertDialog を閉じると空になり、リロードするまで復活しない。
+ * 画面上はボタンが見えているのにロケータが一致しなくなるため、ダイアログを
+ * 跨いだ後は必ずこれを通す。
+ */
+export async function afterDialog(page: Page): Promise<void> {
+  await page.reload();
+}
