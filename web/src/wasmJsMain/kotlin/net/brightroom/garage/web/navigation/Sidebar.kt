@@ -55,7 +55,7 @@ fun Sidebar(current: Route, onNavigate: (Route) -> Unit) {
                             if (enabled) item.label else "${item.label}（権限なし）",
                         )
                     },
-                    selected = current == item.route,
+                    selected = item.matches(current),
                     onClick = { if (enabled) onNavigate(item.route) },
                     modifier = Modifier.fillMaxWidth(),
                 )

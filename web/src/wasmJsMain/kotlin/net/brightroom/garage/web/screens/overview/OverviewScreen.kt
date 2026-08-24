@@ -2,6 +2,8 @@
 
 package net.brightroom.garage.web.screens.overview
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +37,7 @@ import net.brightroom.garage.shared.api.Overview
 import net.brightroom.garage.shared.api.Section
 import net.brightroom.garage.shared.api.alerts
 import net.brightroom.garage.shared.model.garage.ClusterHealthStatus
+import net.brightroom.garage.shared.navigation.Route
 import net.brightroom.garage.web.api.ApiResult
 import net.brightroom.garage.web.api.displayMessage
 import net.brightroom.garage.web.api.getJson
@@ -67,7 +70,7 @@ private val ClusterHealthStatus.label: String
 private fun isDocumentHidden(): Boolean = js("document.hidden")
 
 @Composable
-fun OverviewScreen() {
+fun OverviewScreen(onNavigate: (Route) -> Unit) {
     val session = LocalSession.current
     val scope = rememberCoroutineScope()
 
@@ -135,15 +138,15 @@ fun OverviewScreen() {
 
         when (val current = overview) {
             null -> if (error == null) LoadingView()
-            else -> OverviewContent(current)
+            else -> OverviewContent(current, onNavigate)
         }
     }
 }
 
 @Composable
-private fun OverviewContent(overview: Overview) {
+private fun OverviewContent(overview: Overview, onNavigate: (Route) -> Unit) {
     AlertBand(overview)
-    KeyFigures(overview)
+    KeyFigures(overview, onNavigate)
     NodeList(overview.nodes)
 }
 
@@ -183,8 +186,11 @@ private fun AlertBand(overview: Overview) {
 }
 
 @Composable
-private fun KeyFigures(overview: Overview) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun KeyFigures(overview: Overview, onNavigate: (Route) -> Unit) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         FigureCard("ノード") {
             when (val nodes = overview.nodes) {
                 is Section.Loaded -> Text(
@@ -215,19 +221,25 @@ private fun KeyFigures(overview: Overview) {
             }
         }
 
-        FigureCard("ストレージ") {
+        FigureCard("バケット", onClick = { onNavigate(Route.Buckets) }) {
             when (val storage = overview.storage) {
-                is Section.Loaded -> Column {
-                    Text(
-                        "${storage.data.buckets} バケット",
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                    Text(
-                        "${storage.data.keys} キー",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                is Section.Loaded -> Text(
+                    "${storage.data.buckets}",
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+
+                is Section.Denied -> DeniedView(storage.operation)
+
+                is Section.Failed -> Text(storage.message, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        FigureCard("アクセスキー", onClick = { onNavigate(Route.Keys) }) {
+            when (val storage = overview.storage) {
+                is Section.Loaded -> Text(
+                    "${storage.data.keys}",
+                    style = MaterialTheme.typography.headlineMedium,
+                )
 
                 is Section.Denied -> DeniedView(storage.operation)
 
@@ -259,8 +271,12 @@ private fun KeyFigures(overview: Overview) {
 }
 
 @Composable
-private fun FigureCard(title: String, content: @Composable () -> Unit) {
-    Card(modifier = Modifier.width(220.dp)) {
+private fun FigureCard(title: String, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
+    Card(
+        modifier = Modifier
+            .width(220.dp)
+            .let { base -> onClick?.let { base.clickable(onClick = it) } ?: base },
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
