@@ -16,9 +16,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,7 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.brightroom.garage.shared.api.AlertSeverity
 import net.brightroom.garage.shared.api.NodeSummary
@@ -44,7 +41,9 @@ import net.brightroom.garage.web.api.getJson
 import net.brightroom.garage.web.components.DeniedView
 import net.brightroom.garage.web.components.ErrorView
 import net.brightroom.garage.web.components.LoadingView
+import net.brightroom.garage.web.components.PollingHeader
 import net.brightroom.garage.web.components.formatBytes
+import net.brightroom.garage.web.components.rememberPolling
 import net.brightroom.garage.web.session.LocalSession
 
 private const val POLL_INTERVAL_MILLIS = 10_000L
@@ -61,14 +60,6 @@ private val ClusterHealthStatus.label: String
         ClusterHealthStatus.UNAVAILABLE -> "unavailable"
     }
 
-/**
- * タブが隠れているか。
- *
- * `document.hidden` は kotlinx-browser の wasmJs 向け Document に無く、
- * `visibilityState` も external な列挙型で扱いが不安定なため直接参照する。
- */
-private fun isDocumentHidden(): Boolean = js("document.hidden")
-
 @Composable
 fun OverviewScreen(onNavigate: (Route) -> Unit) {
     val session = LocalSession.current
@@ -76,15 +67,17 @@ fun OverviewScreen(onNavigate: (Route) -> Unit) {
 
     var overview by remember { mutableStateOf<Overview?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var autoRefresh by remember { mutableStateOf(true) }
-    var secondsSinceUpdate by remember { mutableStateOf(0) }
+
+    // 取得に成功した回数。polling は load より後に作られるため、load の中から
+    // markUpdated() を直接は呼べない。成功を状態に立てて LaunchedEffect で伝える
+    var updatedAt by remember { mutableStateOf(0) }
 
     suspend fun load() {
         when (val result = session.api.getJson("/api/overview", Overview.serializer())) {
             is ApiResult.Success -> {
                 overview = result.value
                 error = null
-                secondsSinceUpdate = 0
+                updatedAt++
             }
 
             is ApiResult.Failure -> error = result.problem.displayMessage
@@ -94,45 +87,17 @@ fun OverviewScreen(onNavigate: (Route) -> Unit) {
         }
     }
 
-    LaunchedEffect(Unit) { load() }
+    val polling = rememberPolling(POLL_INTERVAL_MILLIS) { load() }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1_000)
-
-            // 経過時間は自動更新を切っていても進める。止めると古いデータを
-            // 「最終更新 0 秒前」と偽ってしまう。
-            secondsSinceUpdate++
-
-            // 放置されたタブが Garage を叩き続けないようにする
-            if (autoRefresh &&
-                secondsSinceUpdate * 1000L >= POLL_INTERVAL_MILLIS &&
-                !isDocumentHidden()
-            ) {
-                load()
-            }
-        }
+    LaunchedEffect(updatedAt) {
+        if (updatedAt > 0) polling.markUpdated()
     }
 
     Column(
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("概況", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            Text(
-                "最終更新 $secondsSinceUpdate 秒前",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text("自動更新", style = MaterialTheme.typography.bodySmall)
-            Switch(checked = autoRefresh, onCheckedChange = { autoRefresh = it })
-            TextButton(onClick = { scope.launch { load() } }) { Text("更新") }
-        }
+        PollingHeader("概況", polling, onRefresh = { scope.launch { load() } })
 
         error?.let { ErrorView(it, onRetry = { scope.launch { load() } }) }
 
