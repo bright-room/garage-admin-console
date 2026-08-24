@@ -8184,7 +8184,7 @@ spec §10 のパリティチェックリストのうち、Phase 2 が担うの�
 
 Compose はキャンバスに描画するため、DOM のセレクタでは要素を掴めない。Phase 1 と同じくアクセシビリティツリー（`getByRole` / `getByText`）で操作する。**ファイル選択はページの `filechooser` イベントで受ける**（`<input>` は JS が動的に作ってすぐ捨てるため、セレクタでは掴めない）。
 
-テストは並行実行しない（`playwright.config.ts` の `fullyParallel: false`）。ただし**同じ Garage を共有するため、作るものの名前は毎回変える**。
+テストは同一 spec ファイル内では順序実行されるが（`playwright.config.ts` の `fullyParallel: false`）、spec ファイル同士は複数 worker で並行実行される。**同じ Garage を共有するため、作るものの名前は毎回変える**。
 
 - [ ] **Step 1: ヘルパを足す**
 
