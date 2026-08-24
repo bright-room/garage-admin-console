@@ -6,6 +6,7 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.testing.ApplicationTestBuilder
 import net.brightroom.garage.server.api.bucketRoutes
+import net.brightroom.garage.server.api.clusterRoutes
 import net.brightroom.garage.server.api.keyRoutes
 import net.brightroom.garage.server.api.objectRoutes
 import net.brightroom.garage.server.api.sessionRoutes
@@ -44,6 +45,7 @@ fun ApplicationTestBuilder.garageApp(engine: MockEngine, cache: SecretCache = Se
             route("/api") {
                 sessionRoutes(client, cache)
                 bucketRoutes(client)
+                clusterRoutes(client)
                 keyRoutes(client)
                 objectRoutes(client, S3CredentialResolver(client, cache), S3ObjectStore(s3Config))
             }
