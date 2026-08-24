@@ -96,4 +96,30 @@ class RouteTest {
             assertEquals(route, Route.parse(route.path))
         }
     }
+
+    @Test
+    fun parsesPhase3Routes() {
+        assertEquals(Route.Nodes, Route.parse("/nodes"))
+        assertEquals(Route.Layout, Route.parse("/layout"))
+        assertEquals(Route.Workers, Route.parse("/workers"))
+        assertEquals(Route.Blocks, Route.parse("/blocks"))
+        assertEquals(Route.Tokens, Route.parse("/tokens"))
+    }
+
+    @Test
+    fun phase3RoutesRoundTripThroughPath() {
+        listOf(Route.Nodes, Route.Layout, Route.Workers, Route.Blocks, Route.Tokens).forEach { route ->
+            assertEquals(route, Route.parse(route.path))
+        }
+    }
+
+    @Test
+    fun trailingSlashResolvesToTheSameRoute() {
+        assertEquals(Route.Nodes, Route.parse("/nodes/"))
+    }
+
+    @Test
+    fun unknownSubPathOfPhase3RouteIsNotFound() {
+        assertEquals(Route.NotFound("/nodes/abc"), Route.parse("/nodes/abc"))
+    }
 }

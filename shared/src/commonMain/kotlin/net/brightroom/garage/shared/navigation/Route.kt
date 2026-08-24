@@ -35,6 +35,27 @@ sealed interface Route {
         override val path: String get() = "/keys/$id"
     }
 
+    /** クラスタ状態とノード。旧実装の Cluster 画面と Nodes 画面の統合先（spec §8.1）。 */
+    data object Nodes : Route {
+        override val path: String = "/nodes"
+    }
+
+    data object Layout : Route {
+        override val path: String = "/layout"
+    }
+
+    data object Workers : Route {
+        override val path: String = "/workers"
+    }
+
+    data object Blocks : Route {
+        override val path: String = "/blocks"
+    }
+
+    data object Tokens : Route {
+        override val path: String = "/tokens"
+    }
+
     /**
      * オブジェクトブラウザ。
      *
@@ -73,6 +94,16 @@ sealed interface Route {
                 segments.size == 1 && segments[0] == "keys" -> Keys
 
                 segments.size == 2 && segments[0] == "keys" -> KeyDetail(segments[1])
+
+                segments.size == 1 && segments[0] == "nodes" -> Nodes
+
+                segments.size == 1 && segments[0] == "layout" -> Layout
+
+                segments.size == 1 && segments[0] == "workers" -> Workers
+
+                segments.size == 1 && segments[0] == "blocks" -> Blocks
+
+                segments.size == 1 && segments[0] == "tokens" -> Tokens
 
                 segments.size == 2 && segments[0] == "objects" ->
                     Objects(segments[1], queryValue(query, "prefix").orEmpty())
