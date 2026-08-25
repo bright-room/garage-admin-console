@@ -21,6 +21,7 @@ import net.brightroom.garage.web.components.ErrorView
 import net.brightroom.garage.web.navigation.AppScaffold
 import net.brightroom.garage.web.router.RouterState
 import net.brightroom.garage.web.router.rememberRouter
+import net.brightroom.garage.web.screens.blocks.BlocksScreen
 import net.brightroom.garage.web.screens.buckets.BucketDetailScreen
 import net.brightroom.garage.web.screens.buckets.BucketsScreen
 import net.brightroom.garage.web.screens.keys.KeyDetailScreen
@@ -30,6 +31,8 @@ import net.brightroom.garage.web.screens.login.LoginScreen
 import net.brightroom.garage.web.screens.nodes.NodesScreen
 import net.brightroom.garage.web.screens.objects.ObjectBrowserScreen
 import net.brightroom.garage.web.screens.overview.OverviewScreen
+import net.brightroom.garage.web.screens.tokens.TokensScreen
+import net.brightroom.garage.web.screens.workers.WorkersScreen
 import net.brightroom.garage.web.session.LocalSession
 import net.brightroom.garage.web.session.SessionState
 import net.brightroom.garage.web.theme.GarageAdminTheme
@@ -118,12 +121,11 @@ private fun AuthenticatedApp(router: RouterState) {
 
             Route.Layout -> LayoutScreen()
 
-            // Task 16-18 で作る画面。それまでの仮置き（Task 19 で正式に配線する）
-            Route.Workers -> OverviewScreen(onNavigate = router::navigate)
+            Route.Workers -> WorkersScreen()
 
-            Route.Blocks -> OverviewScreen(onNavigate = router::navigate)
+            Route.Blocks -> BlocksScreen()
 
-            Route.Tokens -> OverviewScreen(onNavigate = router::navigate)
+            Route.Tokens -> TokensScreen()
         }
     }
 }

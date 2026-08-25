@@ -10,16 +10,17 @@ test.describe("Overview", () => {
   });
 
   test("shows cluster figures", async ({ page }) => {
-    // 「ノード」は主要数値カードとノード一覧の見出しの両方に出るため first() を取る
-    await expect(page.getByText("ノード", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("状態", { exact: true })).toBeVisible();
+    // 押せるカードは中の文字をまとめて 1 つのボタンにするため、getByText では取れない。
+    // サイドバーの同名の項目と区別するために、後ろに数値が続くことを条件にする
+    await expect(page.getByRole("button", { name: /^ノード\s/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^状態\s/ })).toBeVisible();
     await expect(page.getByText("ストレージ", { exact: true })).toBeVisible();
-    await expect(page.getByText("レイアウト", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^レイアウト\s/ })).toBeVisible();
   });
 
   test("reports a healthy cluster with no alerts", async ({ page }) => {
     // compose の dev クラスタは単一ノードで healthy な状態にある
-    await expect(page.getByText("healthy", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^状態\s+healthy/ })).toBeVisible();
     await expect(page.getByText("異常はありません")).toBeVisible();
   });
 

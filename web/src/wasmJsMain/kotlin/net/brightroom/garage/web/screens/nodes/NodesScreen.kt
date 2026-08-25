@@ -32,8 +32,10 @@ import net.brightroom.garage.shared.api.ConnectNodeResult
 import net.brightroom.garage.shared.api.ConnectNodesRequest
 import net.brightroom.garage.shared.api.NodeActionOutcome
 import net.brightroom.garage.shared.api.RepairRequest
+import net.brightroom.garage.shared.api.SkipDeadNodesRequest
 import net.brightroom.garage.shared.model.garage.ClusterHealthStatus
 import net.brightroom.garage.shared.model.garage.ClusterStatistics
+import net.brightroom.garage.shared.model.garage.LayoutHistory
 import net.brightroom.garage.shared.model.garage.MultiResponse
 import net.brightroom.garage.shared.model.garage.NodeInfo
 import net.brightroom.garage.shared.model.garage.NodeResp
@@ -78,6 +80,7 @@ fun NodesScreen(onNavigate: (Route) -> Unit) {
     var showConnect by remember { mutableStateOf(false) }
     var showSnapshot by remember { mutableStateOf(false) }
     var showRepair by remember { mutableStateOf(false) }
+    var showSkipDeadNodes by remember { mutableStateOf(false) }
 
     // 取得に成功した回数。polling は load より後に作られるため、load の中から
     // markUpdated() を直接は呼べない。成功を状態に立てて LaunchedEffect で伝える
@@ -133,6 +136,11 @@ fun NodesScreen(onNavigate: (Route) -> Unit) {
             TextButton(onClick = { showConnect = true }) { Text("ノードを接続") }
             TextButton(onClick = { showSnapshot = true }) { Text("スナップショット") }
             TextButton(onClick = { showRepair = true }) { Text("修復を開始") }
+
+            // 停止ノードがあるときだけ出す。平時に押せる場所にあってよい操作ではない
+            if (cluster?.status?.nodes?.any { !it.isUp } == true) {
+                TextButton(onClick = { showSkipDeadNodes = true }) { Text("停止ノードを飛ばす") }
+            }
         }
 
         notice?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -240,6 +248,45 @@ fun NodesScreen(onNavigate: (Route) -> Unit) {
                 }
             },
             onDismiss = { showRepair = false },
+        )
+    }
+
+    val layoutVersion = cluster?.status?.layoutVersion
+
+    if (showSkipDeadNodes && layoutVersion != null) {
+        ConfirmDialog(
+            title = "停止したノードを飛ばす",
+            message = "停止しているノードからの応答を待たずにレイアウトを進めます。" +
+                "そのノードにしか無いデータは失われる可能性があります。",
+            onConfirm = {
+                showSkipDeadNodes = false
+                scope.launch {
+                    notice = null
+                    when (
+                        val result = session.api.sendJson(
+                            HttpMethod.Post,
+                            "/api/layout/skip-dead-nodes",
+                            AppJson.encodeToString(
+                                SkipDeadNodesRequest.serializer(),
+                                // データ消失を許す allowMissingData = true は画面から選ばせない。
+                                // 必要な場面は CLI で行う
+                                SkipDeadNodesRequest(version = layoutVersion, allowMissingData = false),
+                            ),
+                            LayoutHistory.serializer(),
+                        )
+                    ) {
+                        is ApiResult.Success -> {
+                            notice = "レイアウトを進めました"
+                            load()
+                        }
+
+                        is ApiResult.Failure -> failure = result
+
+                        ApiResult.Unauthorized -> session.invalidate()
+                    }
+                }
+            },
+            onDismiss = { showSkipDeadNodes = false },
         )
     }
 }
