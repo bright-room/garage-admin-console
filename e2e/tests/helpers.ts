@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * E2E に使う admin token。
@@ -38,7 +38,7 @@ export async function signIn(page: Page, token: string): Promise<void> {
   await page.getByRole("textbox").first().fill(token, { force: true });
   await expect(page.getByText("•".repeat(token.length), { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "ログイン" }).click({ force: true });
+  await clickWhenReady(page.getByRole("button", { name: "ログイン" }));
 
   await expect(page.getByRole("button", { name: "ログアウト" })).toBeVisible({
     timeout: 15_000,
@@ -105,6 +105,24 @@ export async function openScreen(page: Page, path: string, token: string): Promi
   await expect(page.getByRole("button", { name: "ログアウト" })).toBeVisible({
     timeout: 30_000,
   });
+}
+
+/** 名前でボタンを押す。押せるまで繰り返す（[clickWhenReady]）。 */
+export async function clickButton(page: Page, name: string): Promise<void> {
+  await clickWhenReady(page.getByRole("button", { name, exact: true }).first());
+}
+
+/**
+ * 押せるまで繰り返す。
+ *
+ * force を付けた click は actionability を待たないため、Compose が描き直して
+ * いる合間に当たると「not visible」で即座に落ちる。force を外すと今度は
+ * キャンバスの重なりで待ち続けるため、押せるまで繰り返すのが唯一の手になる。
+ */
+export async function clickWhenReady(target: Locator): Promise<void> {
+  await expect(async () => {
+    await target.click({ force: true });
+  }).toPass({ timeout: 15_000 });
 }
 
 /**

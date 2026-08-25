@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { adminToken, signIn } from "./helpers";
+import { adminToken, clickWhenReady, signIn } from "./helpers";
 
 const token = adminToken();
 
@@ -27,7 +27,7 @@ test.describe("Overview", () => {
   test("refreshes on demand", async ({ page }) => {
     await expect(page.getByText(/最終更新 \d+ 秒前/)).toBeVisible();
 
-    await page.getByRole("button", { name: "更新" }).click({ force: true });
+    await clickWhenReady(page.getByRole("button", { name: "更新" }));
 
     await expect(page.getByText(/最終更新 [01] 秒前/)).toBeVisible();
   });

@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { adminToken, afterDialog, openScreen, uniqueName } from "./helpers";
+import { adminToken, afterDialog, clickWhenReady, openScreen, uniqueName } from "./helpers";
 
 const token = adminToken();
 
@@ -37,7 +37,7 @@ test.describe("Access keys", () => {
       await openScreen(page, "/keys", token);
       await expect(page.getByText("dev-key").first()).toBeVisible({ timeout: 30_000 });
 
-      await page.getByRole("button", { name: "キーを作成" }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "キーを作成" }));
       // ダイアログ固有の文言が出るまで待つ。開き切る前に
       // `getByRole("textbox").last()` を使うと、まだ消えていない背景側の
       // 絞り込み欄を掴んでしまうことがある
@@ -45,7 +45,7 @@ test.describe("Access keys", () => {
       await page.getByRole("textbox").last().fill(name, { force: true });
       // fill 直後は入力がまだ状態に反映されていないため、反映を待ってから確定する
       await expect(page.getByText(name)).toBeVisible();
-      await page.getByRole("button", { name: "作成", exact: true }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "作成", exact: true }));
 
       // 作成直後だけ平文のシークレットが出る。ラベルではなく実際の値で確認する
       // （Garage が secret を返さなくても SecretOnceDialog のラベル自体は描かれるため）
@@ -61,7 +61,7 @@ test.describe("Access keys", () => {
       });
       const { secretAccessKey }: { secretAccessKey: string } = await secretResponse.json();
       await expect(page.getByText(secretAccessKey)).toBeVisible();
-      await page.getByRole("button", { name: "閉じる" }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "閉じる" }));
 
       // シークレット表示ダイアログが閉じてツリーが空になっているので取り戻す
       await afterDialog(page);
@@ -69,14 +69,14 @@ test.describe("Access keys", () => {
       await expect(page.getByText(name).first()).toBeVisible({ timeout: 15_000 });
 
       // 詳細では隠れており、「表示」で取り直す（ダイアログを経由しない）
-      await page.getByText(name).first().click({ force: true });
+      await clickWhenReady(page.getByText(name).first());
       await expect(page.getByRole("button", { name: "表示" })).toBeVisible({ timeout: 15_000 });
-      await page.getByRole("button", { name: "表示" }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "表示" }));
       await expect(page.getByRole("button", { name: "表示" })).toHaveCount(0);
 
       // 削除
-      await page.getByRole("button", { name: "キーを削除" }).click({ force: true });
-      await page.getByRole("button", { name: "実行", exact: true }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "キーを削除" }));
+      await clickWhenReady(page.getByRole("button", { name: "実行", exact: true }));
 
       await expect(page).toHaveURL(/\/keys$/, { timeout: 15_000 });
 
