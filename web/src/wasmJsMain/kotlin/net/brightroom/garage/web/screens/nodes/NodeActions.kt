@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
@@ -111,7 +112,7 @@ fun RepairDialog(onConfirm: (RepairRequest) -> Unit, onDismiss: () -> Unit) {
                         readOnly = true,
                         label = { Text("種類") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                     )
                     ExposedDropdownMenu(
                         expanded = typeExpanded,
@@ -142,7 +143,9 @@ fun RepairDialog(onConfirm: (RepairRequest) -> Unit, onDismiss: () -> Unit) {
                             readOnly = true,
                             label = { Text("scrub の操作") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(commandExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            modifier = Modifier.menuAnchor(
+                                ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                            ).fillMaxWidth(),
                         )
                         ExposedDropdownMenu(
                             expanded = commandExpanded,

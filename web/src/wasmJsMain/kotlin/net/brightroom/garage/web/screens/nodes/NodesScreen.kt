@@ -37,6 +37,7 @@ import net.brightroom.garage.shared.model.garage.ClusterStatistics
 import net.brightroom.garage.shared.model.garage.MultiResponse
 import net.brightroom.garage.shared.model.garage.NodeInfo
 import net.brightroom.garage.shared.model.garage.NodeResp
+import net.brightroom.garage.shared.model.garage.NodeStatistics
 import net.brightroom.garage.shared.navigation.Route
 import net.brightroom.garage.web.api.ApiResult
 import net.brightroom.garage.web.api.AppJson
@@ -69,6 +70,7 @@ fun NodesScreen(onNavigate: (Route) -> Unit) {
     var cluster by remember { mutableStateOf<ClusterView?>(null) }
     var statistics by remember { mutableStateOf<ClusterStatistics?>(null) }
     var nodeInfo by remember { mutableStateOf<MultiResponse<NodeInfo>?>(null) }
+    var nodeStatistics by remember { mutableStateOf<MultiResponse<NodeStatistics>?>(null) }
     var failure by remember { mutableStateOf<ApiResult.Failure?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var outcome by remember { mutableStateOf<NodeActionOutcome?>(null) }
@@ -108,6 +110,13 @@ fun NodesScreen(onNavigate: (Route) -> Unit) {
                 MultiResponse.serializer(NodeInfo.serializer()),
             ) as? ApiResult.Success
             )?.let { nodeInfo = it.value }
+
+        (
+            session.api.getJson(
+                "/api/nodes/statistics",
+                MultiResponse.serializer(NodeStatistics.serializer()),
+            ) as? ApiResult.Success
+            )?.let { nodeStatistics = it.value }
     }
 
     val polling = rememberPolling(POLL_INTERVAL_MILLIS) { load() }
@@ -137,7 +146,7 @@ fun NodesScreen(onNavigate: (Route) -> Unit) {
 
             else -> {
                 ClusterSummary(current, statistics)
-                NodeTable(current.status.nodes, nodeInfo)
+                NodeTable(current.status.nodes, nodeInfo, nodeStatistics)
                 TextButton(onClick = { onNavigate(Route.Layout) }) { Text("レイアウトを見る") }
             }
         }
@@ -301,11 +310,15 @@ private fun Figure(label: String, value: String) {
 /**
  * ノードごとに、状態・役割・容量・バージョンを 1 行に束ねる。
  *
- * `GetClusterStatus` が軸で、`GetNodeInfo` はノード ID で引き当てる。
+ * `GetClusterStatus` が軸で、`GetNodeInfo` と `GetNodeStatistics` はノード ID で引き当てる。
  * 情報を取れなかったノードは状態だけを出す。
  */
 @Composable
-private fun NodeTable(nodes: List<NodeResp>, info: MultiResponse<NodeInfo>?) {
+private fun NodeTable(
+    nodes: List<NodeResp>,
+    info: MultiResponse<NodeInfo>?,
+    statistics: MultiResponse<NodeStatistics>?,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -322,14 +335,14 @@ private fun NodeTable(nodes: List<NodeResp>, info: MultiResponse<NodeInfo>?) {
             }
 
             nodes.sortedBy { it.hostname ?: it.id }.forEach { node ->
-                NodeRow(node, info?.success?.get(node.id))
+                NodeRow(node, info?.success?.get(node.id), statistics?.success?.get(node.id))
             }
         }
     }
 }
 
 @Composable
-private fun NodeRow(node: NodeResp, info: NodeInfo?) {
+private fun NodeRow(node: NodeResp, info: NodeInfo?, statistics: NodeStatistics?) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             StatusChip(if (node.isUp) "稼働" else "停止", if (node.isUp) StatusTone.SUCCESS else StatusTone.ERROR)
@@ -380,6 +393,9 @@ private fun NodeRow(node: NodeResp, info: NodeInfo?) {
                 node.addr,
                 node.lastSeenSecsAgo?.let { "最終応答 $it 秒前" },
                 node.role?.tags?.takeIf { it.isNotEmpty() }?.joinToString(", "),
+                statistics?.blockManagerStats?.let { "再同期キュー ${it.resyncQueueLen}" },
+                // 異常なときだけ主張する（spec §8.3）。0 件なら出さない
+                statistics?.blockManagerStats?.takeIf { it.resyncErrors > 0 }?.let { "再同期エラー ${it.resyncErrors}" },
             ).joinToString(" · ").ifEmpty { node.id },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
