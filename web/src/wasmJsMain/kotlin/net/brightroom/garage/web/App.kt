@@ -25,7 +25,9 @@ import net.brightroom.garage.web.screens.buckets.BucketDetailScreen
 import net.brightroom.garage.web.screens.buckets.BucketsScreen
 import net.brightroom.garage.web.screens.keys.KeyDetailScreen
 import net.brightroom.garage.web.screens.keys.KeysScreen
+import net.brightroom.garage.web.screens.layout.LayoutScreen
 import net.brightroom.garage.web.screens.login.LoginScreen
+import net.brightroom.garage.web.screens.nodes.NodesScreen
 import net.brightroom.garage.web.screens.objects.ObjectBrowserScreen
 import net.brightroom.garage.web.screens.overview.OverviewScreen
 import net.brightroom.garage.web.session.LocalSession
@@ -112,11 +114,11 @@ private fun AuthenticatedApp(router: RouterState) {
                 onOpenBucket = { router.navigate(Route.BucketDetail(it)) },
             )
 
-            // Phase 3 の画面は Task 14-18 で作る。それまでの仮置き（Task 19 で正式に配線する）
-            Route.Nodes -> OverviewScreen(onNavigate = router::navigate)
+            Route.Nodes -> NodesScreen(onNavigate = router::navigate)
 
-            Route.Layout -> OverviewScreen(onNavigate = router::navigate)
+            Route.Layout -> LayoutScreen()
 
+            // Task 16-18 で作る画面。それまでの仮置き（Task 19 で正式に配線する）
             Route.Workers -> OverviewScreen(onNavigate = router::navigate)
 
             Route.Blocks -> OverviewScreen(onNavigate = router::navigate)

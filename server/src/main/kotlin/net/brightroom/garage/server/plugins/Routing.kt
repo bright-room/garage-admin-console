@@ -5,11 +5,17 @@ import io.ktor.server.plugins.di.dependencies
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import net.brightroom.garage.server.api.OverviewService
+import net.brightroom.garage.server.api.adminTokenRoutes
+import net.brightroom.garage.server.api.blockRoutes
 import net.brightroom.garage.server.api.bucketRoutes
+import net.brightroom.garage.server.api.clusterRoutes
 import net.brightroom.garage.server.api.keyRoutes
+import net.brightroom.garage.server.api.layoutRoutes
+import net.brightroom.garage.server.api.nodeRoutes
 import net.brightroom.garage.server.api.objectRoutes
 import net.brightroom.garage.server.api.overviewRoutes
 import net.brightroom.garage.server.api.sessionRoutes
+import net.brightroom.garage.server.api.workerRoutes
 import net.brightroom.garage.server.garage.GarageAdminClient
 import net.brightroom.garage.server.s3.S3CredentialResolver
 import net.brightroom.garage.server.s3.S3ObjectStore
@@ -26,9 +32,15 @@ fun Application.configureRouting() {
         route("/api") {
             sessionRoutes(client, cache)
             overviewRoutes(overviewService)
+            adminTokenRoutes(client)
+            blockRoutes(client)
             bucketRoutes(client)
+            clusterRoutes(client)
             keyRoutes(client)
+            layoutRoutes(client)
+            nodeRoutes(client)
             objectRoutes(client, resolver, objectStore)
+            workerRoutes(client)
         }
     }
 }

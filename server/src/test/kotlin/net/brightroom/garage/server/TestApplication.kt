@@ -5,10 +5,16 @@ import io.ktor.server.config.MapApplicationConfig
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.testing.ApplicationTestBuilder
+import net.brightroom.garage.server.api.adminTokenRoutes
+import net.brightroom.garage.server.api.blockRoutes
 import net.brightroom.garage.server.api.bucketRoutes
+import net.brightroom.garage.server.api.clusterRoutes
 import net.brightroom.garage.server.api.keyRoutes
+import net.brightroom.garage.server.api.layoutRoutes
+import net.brightroom.garage.server.api.nodeRoutes
 import net.brightroom.garage.server.api.objectRoutes
 import net.brightroom.garage.server.api.sessionRoutes
+import net.brightroom.garage.server.api.workerRoutes
 import net.brightroom.garage.server.config.AppConfig
 import net.brightroom.garage.server.garage.GarageAdminClient
 import net.brightroom.garage.server.plugins.configureSerialization
@@ -43,9 +49,15 @@ fun ApplicationTestBuilder.garageApp(engine: MockEngine, cache: SecretCache = Se
         routing {
             route("/api") {
                 sessionRoutes(client, cache)
+                adminTokenRoutes(client)
+                blockRoutes(client)
                 bucketRoutes(client)
+                clusterRoutes(client)
                 keyRoutes(client)
+                layoutRoutes(client)
+                nodeRoutes(client)
                 objectRoutes(client, S3CredentialResolver(client, cache), S3ObjectStore(s3Config))
+                workerRoutes(client)
             }
         }
     }
