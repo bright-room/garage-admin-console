@@ -21,8 +21,6 @@ data class NavGroup(val title: String?, val items: List<NavItem>)
 
 /**
  * サイドバーの構成。役割でグループ化する（spec §8.2）。
- *
- * クラスタ・メンテナンス・設定の各グループは、対応する画面を実装する Phase 3 で追加する。
  */
 val navGroups: List<NavGroup> = listOf(
     NavGroup(
@@ -54,6 +52,26 @@ val navGroups: List<NavGroup> = listOf(
                 requiredOperation = "ListBuckets",
                 matches = { it is Route.Objects },
             ),
+        ),
+    ),
+    NavGroup(
+        title = "クラスタ",
+        items = listOf(
+            NavItem(Route.Nodes, "ノード", requiredOperation = "GetClusterStatus"),
+            NavItem(Route.Layout, "レイアウト", requiredOperation = "GetClusterLayout"),
+        ),
+    ),
+    NavGroup(
+        title = "メンテナンス",
+        items = listOf(
+            NavItem(Route.Workers, "ワーカー", requiredOperation = "ListWorkers"),
+            NavItem(Route.Blocks, "ブロック", requiredOperation = "ListBlockErrors"),
+        ),
+    ),
+    NavGroup(
+        title = "設定",
+        items = listOf(
+            NavItem(Route.Tokens, "Admin token", requiredOperation = "ListAdminTokens"),
         ),
     ),
 )

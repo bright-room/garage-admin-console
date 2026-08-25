@@ -8300,3 +8300,63 @@ Phase 4（最終パリティ確認と CI 調整）の計画を書くときに引
 - ダイアログを跨いだ後に画面の状態を確かめる経路は、Compose のツリーの制約により e2e では取れない（P3-17）。UI テストを増やす前にこの制約を思い出すこと
 - `layout.spec.ts` は Playwright の別プロジェクトになっている。e2e を足すときは、概況の異常帯を動かす操作が他の spec と衝突しないかを確かめる
 - 単一ノードの dev では作れない状態が 5 つある。複数ノードの compose を用意するかどうかは Phase 4 の判断に委ねる
+
+---
+
+## Phase 3 の完了判定の根拠（2026-08-25）
+
+Task 19-21 を `phase3/6-nav-e2e` で実施した時点の確認結果。**根拠が「台帳」のものは、
+このセッションで再確認したのではなく、当該タスクの実施時に確認したものである。**
+
+**機能**
+
+- `/nodes` `/layout` `/workers` `/blocks` `/tokens` の 5 画面が描画されることを、
+  fat jar を起動して実機で確認した（Task 19）。操作の導線は e2e が確認している
+  （`nodes.spec.ts` `layout.spec.ts` `maintenance.spec.ts` `tokens.spec.ts`）
+- apply の前に preview が挟まることは `layout.spec.ts` の
+  「stages a change, previews it, then reverts」が確認している
+- サイドバーの 3 グループと概況からの導線は `navigation.spec.ts` が確認している
+
+**契約**
+
+- 46 operation の到達可能性、`MultiResponse` の web への到達、RFC 9457、
+  サーバーが scope を判定していないことは Task 5-11 の実施時に確認済み（台帳）。
+  このセッションでは再確認していない
+- `MultiResponse` の `error` が空のときは応答から省かれる（`explicitNulls = false`）。
+  e2e はこれを `error ?? {}` で見ている
+
+**秘密の扱い**
+
+- `secretToken` が一度しか返らないことは `tokens.spec.ts` の
+  「returns the secret token exactly once」が API で確認している
+- admin token がログに出ないことは `CallLoggingTest`（`./gradlew build` に含まれる）
+
+**テスト**
+
+- `./gradlew build` BUILD SUCCESSFUL
+- e2e はローカルで 58 件すべて成功（連続 2 回）。CI は本 PR で確認する
+- サイドバーの scope 無効表示は `dev-restricted` 相当のトークンで検証済み
+- `layout.spec.ts` は別プロジェクトで、`chromium` の全件が終わってから走る
+- ダイアログを跨いだ後に画面の状態を見るテストは無い
+
+**後始末**
+
+- `App.kt` の仮置きは無い
+- `docker/init-garage.sh` が `dev-restricted` を発行し、CI が解決する
+  （**ローカルの dev Garage は初期化済みで `dev-restricted` を持たないため、
+  一時トークンで代用して検証した。** CI は毎回初期化するので影響しない）
+- PR は #86-#92 がマージ済み。本 PR（Task 19-21）が最後の 1 本
+
+## Phase 3 が残した技術的な事実（追記）
+
+- **Compose の `OutlinedTextField` は `<input>` ではない。** `getByLabel` も
+  `inputValue` も使えず、値は `textContent` で読む
+- **ダイアログが開き切る前に打ち込むと背景の入力欄に入る。** `textbox` の数が
+  ダイアログの分だけになるのを待ってから打ち込むこと
+- **`force: true` を付けた click は actionability を待たない。** Compose の
+  描き直しに当たると「not visible」で即座に落ちる。`helpers.ts` の
+  `clickWhenReady` が押せるまで繰り返す。新しい click はこれを通すこと
+- **概況の押せるカードは、中の文字をまとめて 1 つのボタンにする。** カードの中身は
+  `getByText` では取れない。ボタン名で取ること
+- **mise は `run -- 引数` をタスクの `$1` に渡さない。** スクリプトの末尾に足して
+  実行しようとする。引数が要るタスクは環境変数で受けること

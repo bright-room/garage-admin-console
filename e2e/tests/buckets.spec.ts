@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { adminToken, afterDialog, openScreen, uniqueName } from "./helpers";
+import { adminToken, afterDialog, clickWhenReady, openScreen, uniqueName } from "./helpers";
 
 const token = adminToken();
 
@@ -40,7 +40,7 @@ test.describe("Buckets", () => {
       await expect(page.getByText("dev-bucket").first()).toBeVisible({ timeout: 30_000 });
 
       // 作成
-      await page.getByRole("button", { name: "バケットを作成" }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "バケットを作成" }));
       // ダイアログ固有の文言が出るまで待つ。ダイアログが開くと背景はツリーから
       // 消えるが、開き切る前に `getByRole("textbox").last()` を使うと、まだ
       // 消えていない背景側の絞り込み欄を掴んでしまうことがある
@@ -52,7 +52,7 @@ test.describe("Buckets", () => {
       const created = page.waitForResponse(
         (it) => it.request().method() === "POST" && it.url().endsWith("/api/buckets"),
       );
-      await page.getByRole("button", { name: "作成", exact: true }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "作成", exact: true }));
       // click() が返る時点では POST がまだ飛んでいないことがあるため、
       // 応答を待ってから reload する（先に reload すると進行中の fetch を中断しうる）
       expect((await created).ok()).toBe(true);
@@ -64,7 +64,7 @@ test.describe("Buckets", () => {
       await expect(page.getByText(name).first()).toBeVisible({ timeout: 15_000 });
 
       // 詳細へ（ダイアログを経由しない通常の遷移）
-      await page.getByText(name).first().click({ force: true });
+      await clickWhenReady(page.getByText(name).first());
       await expect(page.getByText("概要", { exact: true })).toBeVisible({ timeout: 15_000 });
 
       // 「アクセスキー」はサイドバーの項目と 2 件一致するため、
@@ -79,11 +79,11 @@ test.describe("Buckets", () => {
       await expect(page.getByText("ライフサイクル", { exact: true })).toBeVisible();
 
       // 削除は名前のタイプ入力を要求する（spec §8.6）
-      await page.getByRole("button", { name: "バケットを削除" }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "バケットを削除" }));
       await expect(page.getByText(/確認のため/)).toBeVisible();
 
       const confirm = page.getByRole("button", { name: "実行", exact: true });
-      await confirm.click({ force: true });
+      await clickWhenReady(confirm);
       // 名前を打つまでは消えない
       await expect(page.getByText(/確認のため/)).toBeVisible();
 
@@ -92,7 +92,7 @@ test.describe("Buckets", () => {
       // 入力が反映されたことは出現数が 3 件になったことで確認する
       // （本文 + 確認メッセージ + 入力欄のエコー）
       await expect(page.getByText(name)).toHaveCount(3);
-      await confirm.click({ force: true });
+      await clickWhenReady(confirm);
 
       // URL の変化はツリーに依らず確認できる
       await expect(page).toHaveURL(/\/buckets$/, { timeout: 15_000 });
@@ -108,7 +108,7 @@ test.describe("Buckets", () => {
 
   test("keeps the bucket route on reload", async ({ page }) => {
     await openScreen(page, "/buckets", token);
-    await page.getByText("dev-bucket").first().click({ force: true });
+    await clickWhenReady(page.getByText("dev-bucket").first());
 
     await expect(page).toHaveURL(/\/buckets\/[0-9a-f]+$/, { timeout: 15_000 });
 

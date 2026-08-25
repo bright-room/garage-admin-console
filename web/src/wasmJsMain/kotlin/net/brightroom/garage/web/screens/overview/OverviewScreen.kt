@@ -17,6 +17,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -111,6 +112,13 @@ fun OverviewScreen(onNavigate: (Route) -> Unit) {
 @Composable
 private fun OverviewContent(overview: Overview, onNavigate: (Route) -> Unit) {
     AlertBand(overview)
+
+    // 異常帯そのものはリンクにしない。1 つの帯に複数の異常が並びうるため
+    // 行き先が曖昧になる。ブロックエラーだけは行き先が 1 つに決まる
+    if (overview.blockErrors.dataOrNull()?.let { it > 0 } == true) {
+        TextButton(onClick = { onNavigate(Route.Blocks) }) { Text("ブロックエラーを見る") }
+    }
+
     KeyFigures(overview, onNavigate)
     NodeList(overview.nodes)
 }
@@ -156,7 +164,7 @@ private fun KeyFigures(overview: Overview, onNavigate: (Route) -> Unit) {
         modifier = Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        FigureCard("ノード") {
+        FigureCard("ノード", onClick = { onNavigate(Route.Nodes) }) {
             when (val nodes = overview.nodes) {
                 is Section.Loaded -> Text(
                     "${nodes.data.count { it.isUp }} / ${nodes.data.size}",
@@ -169,7 +177,7 @@ private fun KeyFigures(overview: Overview, onNavigate: (Route) -> Unit) {
             }
         }
 
-        FigureCard("状態") {
+        FigureCard("状態", onClick = { onNavigate(Route.Nodes) }) {
             when (val health = overview.health) {
                 is Section.Loaded -> Column {
                     Text(health.data.status.label, style = MaterialTheme.typography.headlineMedium)
@@ -212,7 +220,7 @@ private fun KeyFigures(overview: Overview, onNavigate: (Route) -> Unit) {
             }
         }
 
-        FigureCard("レイアウト") {
+        FigureCard("レイアウト", onClick = { onNavigate(Route.Layout) }) {
             when (val layout = overview.layout) {
                 is Section.Loaded -> Column {
                     Text("v${layout.data.version}", style = MaterialTheme.typography.headlineMedium)

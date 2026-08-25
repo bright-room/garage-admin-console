@@ -220,10 +220,12 @@ fun TokensScreen() {
             onConfirm = {
                 confirmDelete = null
                 scope.launch {
-                    when (session.api.sendEmpty(HttpMethod.Delete, "/api/admin-tokens/${token.id}")) {
+                    when (
+                        val result = session.api.sendEmpty(HttpMethod.Delete, "/api/admin-tokens/${token.id}")
+                    ) {
                         is ApiResult.Success -> load()
 
-                        is ApiResult.Failure -> load()
+                        is ApiResult.Failure -> failure = result
 
                         // 自分のトークンを消した場合はここに来る。ログイン画面へ戻る
                         ApiResult.Unauthorized -> session.invalidate()

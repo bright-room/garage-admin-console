@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * E2E に使う admin token。
@@ -38,7 +38,7 @@ export async function signIn(page: Page, token: string): Promise<void> {
   await page.getByRole("textbox").first().fill(token, { force: true });
   await expect(page.getByText("•".repeat(token.length), { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "ログイン" }).click({ force: true });
+  await clickWhenReady(page.getByRole("button", { name: "ログイン" }));
 
   await expect(page.getByRole("button", { name: "ログアウト" })).toBeVisible({
     timeout: 15_000,
@@ -63,11 +63,66 @@ export function limitedToken(): string {
   return token;
 }
 
-/** ログインしてから目的の画面へ移動する。 */
+/**
+ * ほとんどの画面に届かない admin token。
+ *
+ * `docker compose logs garage-init` の "Restricted token:" から取る。
+ * ListBuckets も GetClusterLayout も持たないため、サイドバーの多くが無効になる。
+ */
+export function restrictedToken(): string {
+  const token = process.env.E2E_RESTRICTED_TOKEN;
+
+  if (!token) {
+    throw new Error(
+      "E2E_RESTRICTED_TOKEN が未設定です。docker compose logs garage-init から取得してください",
+    );
+  }
+
+  return token;
+}
+
+/** web が sessionStorage に置くトークンのキー。`SessionState` と合わせること。 */
+const TOKEN_STORAGE_KEY = "garage-admin-console.token";
+
+/**
+ * ログイン画面を通らずにトークンを持たせる。
+ *
+ * `SessionState.restore()` が sessionStorage を読むため、これだけで入場できる。
+ * ログイン画面自体の検証は login.spec.ts が signIn で行う。
+ */
+export async function useToken(page: Page, token: string): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => window.sessionStorage.setItem(key, value),
+    [TOKEN_STORAGE_KEY, token],
+  );
+}
+
+/** トークンを持たせた状態で目的の画面を開く。wasm の読み込みは 1 回で済む。 */
 export async function openScreen(page: Page, path: string, token: string): Promise<void> {
-  await page.goto("/");
-  await signIn(page, token);
+  await useToken(page, token);
   await page.goto(path);
+
+  await expect(page.getByRole("button", { name: "ログアウト" })).toBeVisible({
+    timeout: 30_000,
+  });
+}
+
+/** 名前でボタンを押す。押せるまで繰り返す（[clickWhenReady]）。 */
+export async function clickButton(page: Page, name: string): Promise<void> {
+  await clickWhenReady(page.getByRole("button", { name, exact: true }).first());
+}
+
+/**
+ * 押せるまで繰り返す。
+ *
+ * force を付けた click は actionability を待たないため、Compose が描き直して
+ * いる合間に当たると「not visible」で即座に落ちる。force を外すと今度は
+ * キャンバスの重なりで待ち続けるため、押せるまで繰り返すのが唯一の手になる。
+ */
+export async function clickWhenReady(target: Locator): Promise<void> {
+  await expect(async () => {
+    await target.click({ force: true });
+  }).toPass({ timeout: 15_000 });
 }
 
 /**

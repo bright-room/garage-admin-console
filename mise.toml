@@ -17,7 +17,7 @@ depends = ["build"]
 run = "java -jar server/build/libs/garage-admin-console-all.jar"
 
 [tasks.token]
-description = "ログイン用の admin token を garage-init のログから取り出す"
+description = "admin token を garage-init のログから取り出す（GARAGE_TOKEN_LABEL でラベルを選ぶ）"
 # docker の --format は Go テンプレートで、mise が run を tera でレンダリングする際に
 # 衝突する。スクリプト全体を raw に置いてテンプレート展開から外す。
 run = '''
@@ -50,10 +50,12 @@ if ! logs=$(docker logs "$container" 2>&1); then
   exit 1
 fi
 
-token=$(printf '%s\n' "$logs" | sed -n 's/.*Console login token: //p' | tr -d '\r')
+# mise は引数を $1 に渡さずスクリプトの末尾に足すため、ラベルは環境変数で受ける
+label="${GARAGE_TOKEN_LABEL:-Console login token}"
+token=$(printf '%s\n' "$logs" | sed -n "s/.*${label}: //p" | tr -d '\r')
 
 if [ -z "$token" ]; then
-  echo "$container のログに Console login token がありません。" >&2
+  echo "$container のログに ${label} がありません。" >&2
   echo "トークンは発行時に一度しか表示されません。docker compose down -v で作り直してください。" >&2
   exit 1
 fi
@@ -78,5 +80,8 @@ fi
 npm ci
 npx playwright install chromium
 
-E2E_ADMIN_TOKEN="$(mise run -q token)" BASE_URL="$base_url" npx playwright test
+E2E_ADMIN_TOKEN="$(mise run -q token)" \
+E2E_LIMITED_TOKEN="$(GARAGE_TOKEN_LABEL='Limited-scope token' mise run -q token)" \
+E2E_RESTRICTED_TOKEN="$(GARAGE_TOKEN_LABEL='Restricted token' mise run -q token)" \
+BASE_URL="$base_url" npx playwright test
 '''

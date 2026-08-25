@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { adminToken, signIn, waitForLoginScreen } from "./helpers";
+import { adminToken, clickButton, signIn, waitForLoginScreen } from "./helpers";
 
 const token = adminToken();
 
@@ -18,7 +18,7 @@ test.describe("Login", () => {
 
     await page.getByRole("textbox").first().fill(invalid, { force: true });
     await expect(page.getByText("•".repeat(invalid.length), { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "ログイン" }).click({ force: true });
+    await clickButton(page, "ログイン");
 
     await expect(page.getByText(/受け付けられませんでした/)).toBeVisible();
   });
@@ -38,7 +38,7 @@ test.describe("Login", () => {
     await page.goto("/");
     await signIn(page, token);
 
-    await page.getByRole("button", { name: "ログアウト" }).click({ force: true });
+    await clickButton(page, "ログアウト");
 
     await expect(page.getByRole("button", { name: "ログイン" })).toBeVisible();
 

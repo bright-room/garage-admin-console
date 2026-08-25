@@ -135,4 +135,26 @@ else
   echo "Admin token 'dev-limited' already exists."
 fi
 
+# Create a token that cannot reach most console screens
+RESTRICTED_TOKEN_COUNT=$(echo "${EXISTING_TOKENS}" | jq '[.[] | select(.name == "dev-restricted")] | length')
+
+if [ "${RESTRICTED_TOKEN_COUNT}" = "0" ]; then
+  echo "Creating admin token 'dev-restricted'..."
+  # 概況とノードだけが開ける。サイドバーの他の項目が無効表示になることを e2e で確認する
+  RESTRICTED_RESPONSE=$(curl -sf -X POST \
+    -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{"name": "dev-restricted", "neverExpires": true, "scope": [
+          "GetCurrentAdminTokenInfo", "GetClusterHealth", "GetClusterStatus"]}' \
+    "${GARAGE_ADMIN}/v2/CreateAdminToken")
+
+  RESTRICTED_TOKEN=$(echo "${RESTRICTED_RESPONSE}" | jq -r '.secretToken')
+
+  echo "============================================"
+  echo "Restricted token: ${RESTRICTED_TOKEN}"
+  echo "============================================"
+else
+  echo "Admin token 'dev-restricted' already exists."
+fi
+
 echo "Garage initialization complete!"

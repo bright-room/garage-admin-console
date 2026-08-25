@@ -1,5 +1,13 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { adminToken, afterDialog, limitedToken, openScreen, signIn, uniqueName } from "./helpers";
+import {
+  adminToken,
+  afterDialog,
+  clickWhenReady,
+  limitedToken,
+  openScreen,
+  signIn,
+  uniqueName,
+} from "./helpers";
 
 const token = adminToken();
 
@@ -54,7 +62,7 @@ test.describe("Objects", () => {
       // ファイル入力は JS が動的に作ってすぐ捨てるため、セレクタではなく
       // filechooser イベントで受ける
       const chooser = page.waitForEvent("filechooser");
-      await page.getByRole("button", { name: "アップロード" }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "アップロード" }));
       (await chooser).setFiles({
         name: fileName,
         mimeType: "text/plain",
@@ -79,15 +87,15 @@ test.describe("Objects", () => {
 
       // ダウンロード
       const download = page.waitForEvent("download");
-      await page.getByRole("button", { name: "取得" }).first().click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "取得" }).first());
       expect((await download).suggestedFilename()).toBe(fileName);
 
       // InspectObject
-      await page.getByRole("button", { name: "詳細" }).first().click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "詳細" }).first());
       await expect(page.getByText(/インライン格納|ブロック/)).toBeVisible({ timeout: 15_000 });
       // InspectionDialog のタイトルは inspection.key なので、対象のファイル名まで確認する
       await expect(page.getByText(fileName).first()).toBeVisible();
-      await page.getByRole("button", { name: "閉じる" }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "閉じる" }));
 
       // 詳細ダイアログが閉じてツリーが空になっているので取り戻す。
       // リロードで絞り込みも消えるため、削除の前にもう一度絞り込む
@@ -99,11 +107,11 @@ test.describe("Objects", () => {
       await expect(page.getByRole("button", { name: "削除", exact: true })).toHaveCount(1);
 
       // 削除
-      await page.getByRole("button", { name: "削除", exact: true }).first().click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "削除", exact: true }).first());
       const deleted = page.waitForResponse(
         (it) => it.request().method() === "DELETE" && it.url().includes("/objects?key="),
       );
-      await page.getByRole("button", { name: "実行", exact: true }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "実行", exact: true }));
       // click() が返る時点では DELETE がまだ飛んでいないことがあるため、
       // 応答を待ってから reload する（先に reload すると進行中の fetch を中断しうる）
       expect((await deleted).ok()).toBe(true);
@@ -149,7 +157,7 @@ test.describe("Objects", () => {
       await expect(folderRow).toBeVisible();
 
       // フォルダへ（ダイアログを経由しない通常の遷移なので afterDialog は不要）
-      await folderRow.click({ force: true });
+      await clickWhenReady(folderRow);
       await expect(page).toHaveURL(new RegExp(`prefix=${encodeURIComponent(`${folder}/`)}`));
       await expect(page.getByText("nested.txt").first()).toBeVisible();
 
@@ -159,7 +167,7 @@ test.describe("Objects", () => {
       await expect(page.getByText("nested.txt").first()).toBeVisible({ timeout: 30_000 });
 
       // 「ルート」で戻る
-      await page.getByRole("button", { name: "ルート" }).click({ force: true });
+      await clickWhenReady(page.getByRole("button", { name: "ルート" }));
       await expect(page).toHaveURL(new RegExp(`/objects/${bucketId}$`));
       await expect(page.getByRole("button", { name: `📁 ${folder}/` })).toBeVisible();
     } finally {

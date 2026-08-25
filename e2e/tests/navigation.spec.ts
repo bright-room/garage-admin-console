@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { adminToken, signIn, waitForLoginScreen } from "./helpers";
+import { adminToken, clickWhenReady, signIn, waitForLoginScreen } from "./helpers";
 
 const token = adminToken();
 
@@ -39,25 +39,61 @@ test.describe("Navigation", () => {
     await expect(page.getByRole("button", { name: "オブジェクト", exact: true })).toBeVisible();
 
     // サイドバーの「バケット」「アクセスキー」で遷移できること
-    await page.getByRole("button", { name: "バケット", exact: true }).click({ force: true });
+    await clickWhenReady(page.getByRole("button", { name: "バケット", exact: true }));
     await expect(page).toHaveURL(/\/buckets$/);
 
-    await page.getByRole("button", { name: "アクセスキー", exact: true }).click({ force: true });
+    await clickWhenReady(page.getByRole("button", { name: "アクセスキー", exact: true }));
     await expect(page).toHaveURL(/\/keys$/);
 
     // 概況のカードからもドリルダウンできること。カードごとに概況へ goto し直して
     // まっさらな状態に戻す（自動更新のポーリングが割り込む前に操作を終える）
     await page.goto("/");
     await expect(page.getByRole("button", { name: /^バケット\s/ })).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("button", { name: /^バケット\s/ }).click({ force: true });
+    await clickWhenReady(page.getByRole("button", { name: /^バケット\s/ }));
     await expect(page).toHaveURL(/\/buckets$/);
 
     await page.goto("/");
     await expect(page.getByRole("button", { name: /^アクセスキー\s/ })).toBeVisible({
       timeout: 30_000,
     });
-    await page.getByRole("button", { name: /^アクセスキー\s/ }).click({ force: true });
+    await clickWhenReady(page.getByRole("button", { name: /^アクセスキー\s/ }));
     await expect(page).toHaveURL(/\/keys$/);
+  });
+
+  test("has cluster, maintenance and settings groups in the sidebar", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await page.goto("/");
+    await signIn(page, token);
+
+    await expect(page.getByText("クラスタ", { exact: true })).toBeVisible();
+    await expect(page.getByText("メンテナンス", { exact: true })).toBeVisible();
+    await expect(page.getByText("設定", { exact: true })).toBeVisible();
+
+    for (const [label, path] of [
+      ["ノード", "/nodes"],
+      ["レイアウト", "/layout"],
+      ["ワーカー", "/workers"],
+      ["ブロック", "/blocks"],
+      ["Admin token", "/tokens"],
+    ] as const) {
+      // 同じ語が画面側にも出るため、サイドバーの項目（完全一致）の先頭を押す
+      await clickWhenReady(page.getByRole("button", { name: label, exact: true }).first());
+      await expect(page).toHaveURL(new RegExp(`${path}$`));
+    }
+  });
+
+  test("restores the screen after a reload of a deep link", async ({ page }) => {
+    // History API ルーティングと SPA フォールバックが両方効いていること
+    await page.goto("/");
+    await signIn(page, token);
+    await page.goto("/workers");
+
+    await expect(page.getByText("設定変数")).toBeVisible({ timeout: 30_000 });
+
+    await page.reload();
+
+    await expect(page.getByText("設定変数")).toBeVisible({ timeout: 30_000 });
+    await expect(page).toHaveURL(/\/workers$/);
   });
 
   test("shows a not-found screen for an unknown client route", async ({ page }) => {

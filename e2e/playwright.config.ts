@@ -17,6 +17,16 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testIgnore: /layout\.spec\.ts/,
+      use: { browserName: "chromium" },
+    },
+    {
+      // レイアウトを stage している間、概況の異常帯に「未適用の変更」が出る。
+      // 他の spec と同時に走らせると overview.spec.ts の「異常はありません」が
+      // 壊れるため、すべてが終わってから単独で走らせる
+      name: "layout",
+      testMatch: /layout\.spec\.ts/,
+      dependencies: ["chromium"],
       use: { browserName: "chromium" },
     },
   ],
