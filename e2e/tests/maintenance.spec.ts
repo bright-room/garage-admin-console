@@ -52,7 +52,14 @@ test.describe("Workers", () => {
     // 値の欄と「設定」は変数 1 件につき 1 つずつ並ぶため、番号が対応する
     const index = await variableIndex(request, "scrub-tranquility");
 
-    await page.getByRole("textbox").nth(index).fill("5", { force: true });
+    const field = page.getByRole("textbox").nth(index);
+    const before = (await field.textContent()) ?? "";
+
+    await field.fill("5", { force: true });
+    // 「設定」は値が変わるまで無効。Compose は無効状態をツリーに出さないため、
+    // 打ち込みが状態に取り込まれたことを欄の描画で待つ
+    await expect(field).not.toHaveText(before);
+
     await clickWhenReady(page.getByRole("button", { name: "設定" }).nth(index));
 
     await expect(page.getByText("ワーカーの設定を変更", { exact: true })).toBeVisible();

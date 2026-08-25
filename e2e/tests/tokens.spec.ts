@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import {
   adminToken,
   afterDialog,
@@ -9,6 +9,15 @@ import {
 } from "./helpers";
 
 const token = adminToken();
+
+/** いま存在するトークンの名前。UI からは確かめられない結果をここで見る。 */
+async function tokenNames(request: APIRequestContext): Promise<string[]> {
+  const response = await request.get("/api/admin-tokens", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  return (await response.json()).map((it: { name: string }) => it.name);
+}
 
 test.describe("Admin tokens", () => {
   test.beforeEach(async ({ page }) => {
@@ -42,7 +51,14 @@ test.describe("Admin tokens", () => {
     // 入力が状態に取り込まれるまで「作成」は無効。Compose は無効状態を
     // ツリーに出さないため、打ち込んだ文字が描かれるのを待つ（signIn と同じ）
     await expect(page.getByText(name, { exact: true })).toBeVisible();
+
+    const created = page.waitForResponse(
+      (it) => it.request().method() === "POST" && it.url().endsWith("/api/admin-tokens"),
+    );
     await clickButton(page, "作成");
+    // click() が返る時点では POST がまだ飛んでいないことがあるため、
+    // 応答を待ってから reload する（先に reload すると進行中の fetch を中断しうる）
+    expect((await created).ok()).toBe(true);
 
     // ダイアログを跨ぐとツリーが空になる。リロードで取り戻す。
     // 一度だけ表示される secret はこのリロードで消えるため、ここでは確かめない
@@ -59,14 +75,14 @@ test.describe("Admin tokens", () => {
     const list = await request.get("/api/admin-tokens", {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const created = (await list.json()).find((it: { name: string }) => it.name === name);
-    expect(created).toBeDefined();
-    await request.delete(`/api/admin-tokens/${created.id}`, {
+    const listed = (await list.json()).find((it: { name: string }) => it.name === name);
+    expect(listed).toBeDefined();
+    await request.delete(`/api/admin-tokens/${listed.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
   });
 
-  test("requires typing the name before deleting", async ({ page, request }) => {
+  test("deletes only after the name is typed", async ({ page, request }) => {
     const name = uniqueName("tok");
 
     // 削除の対象は API で用意する。作成の UI 経路は前のテストが見ている
@@ -89,12 +105,37 @@ test.describe("Admin tokens", () => {
 
     await expect(page.getByText("トークンを削除", { exact: true })).toBeVisible();
     await expect(page.getByText(`確認のため「${name}」と入力してください`)).toBeVisible();
-    await clickButton(page, "キャンセル");
-    await afterDialog(page);
 
-    await request.delete(`/api/admin-tokens/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    // 名前が空のままでは実行できない（ダイアログが閉じない）
+    await clickButton(page, "実行");
+    await expect(page.getByText(`確認のため「${name}」と入力してください`)).toBeVisible();
+
+    // 名前を最後の 1 文字だけ欠いた状態でも実行できない。
+    // Compose の入力欄は contenteditable で、fill は既存の値に足していく。
+    // 打ち直せないため、名前を 2 つに割って前半 → 後半の順に入れる
+    await expect(page.getByRole("textbox")).toHaveCount(1);
+    const confirmField = page.getByRole("textbox").first();
+
+    await confirmField.fill(name.slice(0, -1), { force: true });
+    await expect(confirmField).toHaveText(name.slice(0, -1));
+    await clickButton(page, "実行");
+    await expect(page.getByText(`確認のため「${name}」と入力してください`)).toBeVisible();
+
+    // まだ消えていない
+    expect(await tokenNames(request)).toContain(name);
+
+    // 名前が一致すれば実行できる
+    await confirmField.fill(name.slice(-1), { force: true });
+    await expect(confirmField).toHaveText(name);
+
+    const deleted = page.waitForResponse(
+      (it) => it.request().method() === "DELETE" && it.url().endsWith(`/api/admin-tokens/${id}`),
+    );
+    await clickButton(page, "実行");
+    // click() が返る時点では DELETE がまだ飛んでいないことがある
+    expect((await deleted).status()).toBe(204);
+
+    expect(await tokenNames(request)).not.toContain(name);
   });
 
   /**
@@ -149,13 +190,22 @@ test.describe("Scope degradation", () => {
     await expect(page.getByRole("button", { name: "概況", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "ノード", exact: true })).toBeVisible();
 
-    // 使えない項目には「（権限なし）」が付く
-    await expect(page.getByRole("button", { name: "バケット（権限なし）" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "アクセスキー（権限なし）" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "レイアウト（権限なし）" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "ワーカー（権限なし）" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "ブロック（権限なし）" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Admin token（権限なし）" })).toBeVisible();
+    // 使えない項目には「（権限なし）」が付き、押しても動かない。
+    // `NavigationDrawerItem` に enabled は無く、Sidebar が onClick の中で
+    // 遷移を止めているだけなので、無効であることは URL が変わらないことで見る
+    for (const label of [
+      "バケット（権限なし）",
+      "アクセスキー（権限なし）",
+      "レイアウト（権限なし）",
+      "ワーカー（権限なし）",
+      "ブロック（権限なし）",
+      "Admin token（権限なし）",
+    ]) {
+      await expect(page.getByRole("button", { name: label })).toBeVisible();
+
+      await clickButton(page, label);
+      await expect(page).toHaveURL(/\/$/);
+    }
   });
 
   test("shows a scope message when opening a screen directly", async ({ page }) => {
