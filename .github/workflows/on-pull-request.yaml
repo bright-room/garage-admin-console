@@ -78,6 +78,20 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "E2E_LIMITED_TOKEN=$TOKEN" >> "$GITHUB_ENV"
 
+      - name: Resolve restricted token
+        run: |
+          TOKEN=$(docker compose -f compose.ci.yaml logs garage-init \
+            | grep 'Restricted token:' \
+            | sed 's/.*Restricted token: //' \
+            | tr -d '\r')
+          if [ -z "$TOKEN" ]; then
+            echo "failed to resolve restricted token from garage-init logs" >&2
+            docker compose -f compose.ci.yaml logs garage-init >&2
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "E2E_RESTRICTED_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
       - name: Set up Java
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
