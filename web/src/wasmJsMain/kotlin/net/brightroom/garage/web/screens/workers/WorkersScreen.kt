@@ -196,6 +196,14 @@ private fun VariablesCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
+            variables.error.takeIf { it.isNotEmpty() }?.let { failures ->
+                Text(
+                    "${failures.size} 台のノードから設定変数を取得できませんでした",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
             names.forEach { name ->
                 val values = variables.success.values.mapNotNull { it[name] }.distinct()
                 val shown = values.singleOrNull() ?: values.joinToString(" / ")
