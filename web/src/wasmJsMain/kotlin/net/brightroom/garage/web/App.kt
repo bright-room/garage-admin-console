@@ -111,6 +111,17 @@ private fun AuthenticatedApp(router: RouterState) {
                 onNavigatePrefix = { router.navigate(Route.Objects(route.bucketId, it)) },
                 onOpenBucket = { router.navigate(Route.BucketDetail(it)) },
             )
+
+            // Phase 3 の画面は Task 14-18 で作る。それまでの仮置き（Task 19 で正式に配線する）
+            Route.Nodes -> OverviewScreen(onNavigate = router::navigate)
+
+            Route.Layout -> OverviewScreen(onNavigate = router::navigate)
+
+            Route.Workers -> OverviewScreen(onNavigate = router::navigate)
+
+            Route.Blocks -> OverviewScreen(onNavigate = router::navigate)
+
+            Route.Tokens -> OverviewScreen(onNavigate = router::navigate)
         }
     }
 }

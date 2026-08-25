@@ -6,7 +6,14 @@ import kotlin.time.Instant
 
 /** ログイン中の admin token の情報。`/api/session` が返す。 */
 @Serializable
-data class Session(val name: String, val scope: List<String>, val expired: Boolean, val expiration: Instant? = null)
+data class Session(
+    val name: String,
+    val scope: List<String>,
+    val expired: Boolean,
+    val expiration: Instant? = null,
+    /** 設定ファイル由来のトークンは ID を持たない。 */
+    val id: String? = null,
+)
 
 /**
  * この操作が scope に含まれるかを返す。
@@ -21,4 +28,5 @@ fun AdminToken.toSession(): Session = Session(
     scope = scope,
     expired = expired,
     expiration = expiration,
+    id = id,
 )

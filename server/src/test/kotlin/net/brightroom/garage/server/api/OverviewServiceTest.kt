@@ -35,7 +35,8 @@ class OverviewServiceTest {
 
     private val layoutBody = """
         {"version":7,"roles":[],"parameters":{"zoneRedundancy":"maximum"},"partitionSize":1024,
-         "stagedRoleChanges":[{"id":"abc"},{"id":"def"}]}
+         "stagedRoleChanges":[{"id":"abc","remove":true},
+                              {"id":"def","zone":"dc1","tags":[],"capacity":1024}]}
     """.trimIndent()
 
     private val blockErrorsBody = """
