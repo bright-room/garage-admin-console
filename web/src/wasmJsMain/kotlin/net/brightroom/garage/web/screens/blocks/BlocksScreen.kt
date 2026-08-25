@@ -84,6 +84,9 @@ fun BlocksScreen() {
 
     suspend fun openDetail(hash: String) {
         selected = hash
+        // 前に開いたブロックの内容が、別のハッシュの見出しの下に残らないようにする
+        detail = null
+
         when (
             val result = session.api.getJson(
                 "/api/blocks/$hash",
