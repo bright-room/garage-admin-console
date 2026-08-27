@@ -24,6 +24,60 @@ async function deleteBucketIfExists(request: APIRequestContext, name: string): P
   });
 }
 
+/** 別名を 1 つ持つバケットを作り、その ID を返す。 */
+async function createBucket(request: APIRequestContext, alias: string): Promise<string> {
+  const response = await request.post("/api/buckets", {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { globalAlias: alias },
+  });
+
+  if (!response.ok()) throw new Error(`バケットを作れません: ${response.status()}`);
+
+  const { id }: { id: string } = await response.json();
+
+  return id;
+}
+
+/**
+ * 別名を持たないバケットを作り、その ID を返す。
+ *
+ * 別名の無いバケットは S3 API からアドレスできない（spec §6.5）。
+ * 別名を要しないテストの土台としても使う。
+ */
+async function createBucketWithoutAlias(request: APIRequestContext): Promise<string> {
+  const response = await request.post("/api/buckets", {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {},
+  });
+
+  if (!response.ok()) throw new Error(`バケットを作れません: ${response.status()}`);
+
+  const { id }: { id: string } = await response.json();
+
+  return id;
+}
+
+/** ID でバケットを消す。別名の無いバケットは名前で引けないため。 */
+async function deleteBucketById(request: APIRequestContext, id: string): Promise<void> {
+  await request.delete(`/api/buckets/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+/** バケットのグローバル別名を API から引く。画面の表示ではなくサーバーの状態を見るため。 */
+async function globalAliases(request: APIRequestContext, id: string): Promise<string[]> {
+  const response = await request.get(`/api/buckets/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok()) throw new Error(`バケットを引けません: ${response.status()}`);
+
+  // 別名の無いバケットは globalAliases フィールドが応答から省かれる
+  const bucket: { globalAliases?: string[] } = await response.json();
+
+  return bucket.globalAliases ?? [];
+}
+
 test.describe("Buckets", () => {
   // BucketDetailScreen は縦に長く、既定のビューポートでは「バケットを削除」等が
   // 画面外に出る。wheel でキャンバス自体はスクロールできるが、そのたびに
@@ -103,6 +157,50 @@ test.describe("Buckets", () => {
       await expect(page.getByText(name)).toHaveCount(0);
     } finally {
       await deleteBucketIfExists(request, name);
+    }
+  });
+
+  test("adds and removes a global alias", async ({ page, request }) => {
+    const name = uniqueName("e2e-alias");
+    const extra = `${name}-alt`;
+    // Garage は最後の 1 つの別名を外させない（外すのではなくバケットごと
+    // 消せ、と返す）。そのため別名 1 つの状態から始め、2 つに増やして戻す
+    const id = await createBucket(request, name);
+
+    try {
+      await openScreen(page, `/buckets/${id}`, token);
+      await expect(page.getByRole("button", { name: "別名を削除" })).toHaveCount(1, {
+        timeout: 30_000,
+      });
+
+      // 「追加する別名」は詳細画面で最初の入力欄。概要には入力欄が無く、
+      // 設定フォームの入力欄はこれより後ろに並ぶ
+      await page.getByRole("textbox").first().fill(extra, { force: true });
+      // fill 直後は Compose の状態にまだ入力が反映されていない
+      await expect(page.getByText(extra).first()).toBeVisible();
+      await clickWhenReady(page.getByRole("button", { name: "追加", exact: true }));
+
+      await expect(page.getByText(`別名 ${extra} を追加しました`)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole("button", { name: "別名を削除" })).toHaveCount(2);
+
+      // 追加がサーバーに届いていることを確かめる。画面の表示だけでは
+      // 「描けている」ことしか分からない
+      expect((await globalAliases(request, id)).sort()).toEqual([name, extra].sort());
+
+      // 別名の行と削除ボタンの対応は Playwright からは取れない（Compose の
+      // ツリーは行の親子関係を保たない）。どちらが消えたかはサーバーに聞く
+      await clickWhenReady(page.getByRole("button", { name: "別名を削除" }).first());
+
+      await expect(async () => {
+        expect(await globalAliases(request, id)).toHaveLength(1);
+      }).toPass({ timeout: 15_000 });
+
+      const remaining = await globalAliases(request, id);
+      const removed = [name, extra].find((it) => !remaining.includes(it));
+      await expect(page.getByText(`別名 ${removed} を削除しました`)).toBeVisible();
+      await expect(page.getByRole("button", { name: "別名を削除" })).toHaveCount(1);
+    } finally {
+      await deleteBucketById(request, id);
     }
   });
 
