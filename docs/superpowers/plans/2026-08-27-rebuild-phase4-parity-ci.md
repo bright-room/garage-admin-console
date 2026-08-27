@@ -101,6 +101,14 @@ grep -h 'test(' e2e/tests/*.spec.ts
 
 旧 spec の大半は「画面が描画されるか」だけを見ている（例: `cluster.spec.ts` は "displays cluster nodes screen" と "shows connect node button" の 2 件）。新 e2e はいずれも同じ画面に対してより広い検証を持つため、対応先は素直に決まるはずである。
 
+**§10 は旧 spec との対応だけでなく「新規に追加するもの」も挙げている。** 同じ節に 2 つ目の表を作り、次の 5 件それぞれの対応先を書く。いずれも既に新 e2e に存在するため、これも行を埋めるだけの作業である。
+
+- ログイン（トークン入力 → 入場 → 401 で戻る）
+- 明示的なログアウト
+- scope 縮退
+- オブジェクトブラウザ
+- `ApplyClusterLayout` の preview 確認
+
 - [ ] **Step 4: コミット**
 
 ```bash
@@ -366,6 +374,7 @@ BASE_URL=http://localhost:8080 npx playwright test tests/buckets.spec.ts -g "gra
 
 - `getByRole("radio", { name: keyName })` が一致しない → Compose の `RadioButton` はラベルを持たず、キー名は隣の `Text` である。その場合は `page.getByRole("radio").first()`（`available` はこのバケットに権限を持たないキーの全件なので、専用に作ったキーが 1 件目とは限らない点に注意）ではなく、キー名で行を絞れるかを `--debug` で確かめてから決める。どうしても行を特定できなければ、`GET /api/keys` で全件を引き、対象キーが何番目かを求めて `nth()` で取る（P3 の実測 12 件目と同じ手）
 - チェックボックスの並びが read / write / owner でない → `GrantKeyDialog` の `Row` を読み直す
+- 「権限を付与」を押しても何も起きない → 確定ボタンは権限が 1 つも選ばれていないと無効だが、Compose は無効状態をツリーに出さないため押せてしまう。チェックが状態に取り込まれるのを待つ（ツリーに出るなら `toBeChecked`、出ないなら `clickWhenReady` の後に `toPass` で押し直す）
 - 「権限を外す」の確認ダイアログで strict mode 違反になる → 見出しと本文の両方に同じ語が入っている。`exact: true` で取る（P3 の実測 13 件目と同じ罠）
 
 - [ ] **Step 5: 後始末を確かめる**
@@ -415,25 +424,27 @@ import { adminToken, afterDialog, clickWhenReady, openScreen, uniqueName } from 
     const name = uniqueName("e2e-import");
     const renamed = `${name}-renamed`;
 
-    // インポートに使う資格情報を作る。架空の値ではなく Garage が発行した値を使う
-    const created = await request.post("/api/keys", {
-      headers: { Authorization: `Bearer ${token}` },
-      data: { name },
-    });
-    expect(created.ok()).toBe(true);
-    const { id }: { id: string } = await created.json();
-
-    const withSecret = await request.get(`/api/keys/${id}?showSecret=true`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const { secretAccessKey }: { secretAccessKey: string } = await withSecret.json();
-
-    // 同じ ID でインポートし直すため、いったん消す
-    await request.delete(`/api/keys/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
+    // 資格情報を作るところから try に入れる。作った直後に落ちても
+    // finally が後始末できるようにするため
     try {
+      // インポートに使う資格情報を作る。架空の値ではなく Garage が発行した値を使う
+      const created = await request.post("/api/keys", {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { name },
+      });
+      expect(created.ok()).toBe(true);
+      const { id }: { id: string } = await created.json();
+
+      const withSecret = await request.get(`/api/keys/${id}?showSecret=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const { secretAccessKey }: { secretAccessKey: string } = await withSecret.json();
+
+      // 同じ ID でインポートし直すため、いったん消す
+      await request.delete(`/api/keys/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
       await openScreen(page, "/keys", token);
       await expect(page.getByText("dev-key").first()).toBeVisible({ timeout: 30_000 });
 
@@ -448,9 +459,14 @@ import { adminToken, afterDialog, clickWhenReady, openScreen, uniqueName } from 
       await fields.nth(0).fill(name, { force: true });
       await fields.nth(1).fill(id, { force: true });
       await fields.nth(2).fill(secretAccessKey, { force: true });
-      // 入力が状態に取り込まれるのを待ってから確定する。シークレットは
-      // マスク表示のため、素の値ではなくアクセスキー ID の反映で待つ
+      // 入力が状態に取り込まれるのを待ってから確定する。3 つすべてが
+      // 埋まるまで確定ボタンは無効だが、Compose は無効状態をツリーに出さない
+      // ため、押せてしまう（押しても何も起きず、POST を待つ側が固まる）。
+      // シークレットは最後に入れるうえマスク表示のため、マスクの長さで待つ
       await expect(page.getByText(id).first()).toBeVisible();
+      await expect(
+        page.getByText("•".repeat(secretAccessKey.length), { exact: true }),
+      ).toBeVisible();
 
       const imported = page.waitForResponse(
         (it) => it.request().method() === "POST" && it.url().endsWith("/api/keys/import"),
@@ -501,6 +517,7 @@ BASE_URL=http://localhost:8080 npx playwright test tests/keys.spec.ts -g "import
 落ちた場合に疑う点。
 
 - 「インポート」が 2 件一致して strict mode 違反 → ダイアログが開き切る前に取っている。待ちの条件を見直す
+- `waitForResponse` が返らないまま制限時間に達する → 確定ボタンが無効のまま押されている。3 つの入力欄すべてが Compose の状態に取り込まれるのを待てていない
 - Garage が同じ accessKeyId のインポートを拒む → 削除が非同期で完了していない。削除後に `GET /api/keys/{id}` が 404 になるまで待つ処理を足す
 - 「設定」がサイドバーの項目とも一致する → `Sidebar.kt` の項目名を確かめ、一致するなら「バケットの作成を許可する」で待つ
 
