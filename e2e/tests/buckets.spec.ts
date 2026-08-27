@@ -308,6 +308,44 @@ test.describe("Buckets", () => {
     }
   });
 
+  test("asks for confirmation before cleaning up unfinished uploads", async ({ page, request }) => {
+    const id = await createBucketWithoutAlias(request);
+
+    try {
+      await openScreen(page, `/buckets/${id}`, token);
+      await expect(
+        page.getByText("24 時間より古い未完了のアップロードを削除します"),
+      ).toBeVisible({ timeout: 30_000 });
+
+      await clickWhenReady(page.getByRole("button", { name: "未完了アップロードを削除" }));
+      // 見出しと本文の両方に同じ語が入るため exact で取る
+      await expect(page.getByText("未完了アップロードの後始末", { exact: true })).toBeVisible();
+      await expect(page.getByText(/進行中のアップロードには影響しません/)).toBeVisible();
+    } finally {
+      await deleteBucketById(request, id);
+    }
+  });
+
+  test("reports the number of cleaned up uploads over the api", async ({ request }) => {
+    const id = await createBucketWithoutAlias(request);
+
+    try {
+      // 後始末は 24 時間より古い未完了アップロードだけを消す（P2-9）。
+      // テストの中で作ったものは必ず新しいため、実際に消えるところは
+      // e2e では作れない。成功して件数が返ることまでを見る
+      const response = await request.post(`/api/buckets/${id}/cleanup-uploads`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: {},
+      });
+
+      expect(response.ok()).toBe(true);
+      const { uploadsDeleted }: { uploadsDeleted: number } = await response.json();
+      expect(uploadsDeleted).toBe(0);
+    } finally {
+      await deleteBucketById(request, id);
+    }
+  });
+
   test("keeps the bucket route on reload", async ({ page }) => {
     await openScreen(page, "/buckets", token);
     await clickWhenReady(page.getByText("dev-bucket").first());
