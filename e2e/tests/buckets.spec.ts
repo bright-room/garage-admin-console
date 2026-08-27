@@ -266,30 +266,43 @@ test.describe("Buckets", () => {
         page.getByText("このバケットに権限を持つキーがありません。オブジェクトの操作にはキーが要ります"),
       ).toBeVisible({ timeout: 30_000 });
 
-      // 付与（GrantKeyDialog）
-      await clickWhenReady(page.getByRole("button", { name: "キーに権限を付与" }));
-      // ダイアログが開き切るのを、ダイアログ固有の文言で待つ
-      await expect(page.getByText("バケットへのキーの権限付与")).toBeVisible();
-
+      // 付与（GrantKeyDialog）。
+      //
       // Compose の RadioButton と Checkbox は、名前を持たない button として
       // ツリーに出る（radio / checkbox のロールにはならない）。ダイアログには
-      // 「キーの数だけのラジオ」「read / write / owner の 3 つ」がこの順に並ぶ。
-      // このバケットはまだ権限を持つキーが無いので、選べるキーは全件と一致する
-      const selectable = await keyNames(request);
-      const target = selectable.indexOf(keyName);
-      expect(target).toBeGreaterThanOrEqual(0);
-
-      await clickWhenReady(page.getByRole("button").nth(target));
-      // read だけを付ける
-      await clickWhenReady(page.getByRole("button").nth(selectable.length));
-
-      // 確定ボタンは権限が 1 つも選ばれていないと無効だが、Compose は無効状態を
-      // ツリーに出さないため押せてしまう。押しても何も起きなかった場合に備えて、
-      // サーバーに反映されるまで押し直す（付与は PUT なので何度押しても同じ）
+      // 「選べるキーの数だけのラジオ」「read / write / owner の 3 つ」がこの順に
+      // 並ぶため、押す対象は位置で決めるしかない。位置は API から引く。
+      //
+      // ダイアログはキーの一覧を開いた時点で読む。他の spec が同時にキーを
+      // 作り消しするため、一覧はこちらが引いた時点とずれうる。ずれたら別の
+      // キーに権限が付いてしまうので、開くところからやり直す（やり直しでは
+      // 選べるキーが変わるため、位置も引き直す）
       await expect(async () => {
+        // やり直しのときはダイアログが開いたままでツリーが空になっている。
+        // 開き直す前に取り戻す
+        await afterDialog(page);
+        await expect(page.getByRole("button", { name: "キーに権限を付与" })).toBeVisible({
+          timeout: 30_000,
+        });
+
+        const granted = await permittedKeyNames(request, bucketId);
+        const selectable = (await keyNames(request)).filter((it) => !granted.includes(it));
+        const target = selectable.indexOf(keyName);
+        expect(target).toBeGreaterThanOrEqual(0);
+
+        await clickWhenReady(page.getByRole("button", { name: "キーに権限を付与" }));
+        // ダイアログが開き切るのを、ダイアログ固有の文言で待つ
+        await expect(page.getByText("バケットへのキーの権限付与")).toBeVisible();
+
+        await clickWhenReady(page.getByRole("button").nth(target));
+        // read だけを付ける
+        await clickWhenReady(page.getByRole("button").nth(selectable.length));
+        // 確定ボタンは権限が 1 つも選ばれていないと無効だが、Compose は無効状態を
+        // ツリーに出さないため押せてしまう
         await page.getByRole("button", { name: "権限を付与", exact: true }).click({ force: true });
+
         expect(await permittedKeyNames(request, bucketId)).toContain(keyName);
-      }).toPass({ timeout: 15_000 });
+      }).toPass({ timeout: 45_000 });
 
       // 剥奪（ConfirmDialog）。ツリーを取り戻してから押す
       await afterDialog(page);

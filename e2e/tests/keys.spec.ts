@@ -112,15 +112,20 @@ test.describe("Access keys", () => {
       // 背景側のボタンを押してしまう
       await expect(page.getByText("他のクラスタから持ち込んだキーを登録します")).toBeVisible();
 
-      // 名前・アクセスキー ID・シークレットがこの順に並ぶ
+      // 名前・アクセスキー ID・シークレットがこの順に並ぶ。
+      // **1 つ入れるごとに反映を待つ。** force を付けた fill は actionability を
+      // 待たないため、Compose が描き直している合間に当たると入力が落ちる。
+      // 3 つ続けて入れると、落ちた欄があっても気づけないまま確定に進み、
+      // 確定ボタンが無効のままになる（Compose は無効状態をツリーに出さない）
       const fields = page.getByRole("textbox");
       await fields.nth(0).fill(name, { force: true });
+      await expect(page.getByText(name).first()).toBeVisible();
+
       await fields.nth(1).fill(accessKeyId, { force: true });
-      await fields.nth(2).fill(secretAccessKey, { force: true });
-      // 入力が状態に取り込まれるのを待ってから確定する。3 つすべてが
-      // 埋まるまで確定ボタンは無効だが、Compose は無効状態をツリーに出さない
-      // ため押せてしまう。シークレットはマスク表示のため、マスクの長さで待つ
       await expect(page.getByText(accessKeyId).first()).toBeVisible();
+
+      await fields.nth(2).fill(secretAccessKey, { force: true });
+      // シークレットはマスク表示のため、マスクの長さで待つ
       await expect(
         page.getByText("•".repeat(secretAccessKey.length), { exact: true }),
       ).toBeVisible();
