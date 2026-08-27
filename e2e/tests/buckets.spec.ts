@@ -78,6 +78,57 @@ async function globalAliases(request: APIRequestContext, id: string): Promise<st
   return bucket.globalAliases ?? [];
 }
 
+/**
+ * 権限の付け外しに使う専用のキーを作り、その accessKeyId を返す。
+ *
+ * 一覧（`KeySummary`）は `id`、作成と詳細（`KeyInfo`）は `accessKeyId` を返す。
+ */
+async function createKey(request: APIRequestContext, name: string): Promise<string> {
+  const response = await request.post("/api/keys", {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { name },
+  });
+
+  if (!response.ok()) throw new Error(`キーを作れません: ${response.status()}`);
+
+  const { accessKeyId }: { accessKeyId: string } = await response.json();
+
+  return accessKeyId;
+}
+
+/** ID でキーを消す。 */
+async function deleteKeyById(request: APIRequestContext, id: string): Promise<void> {
+  await request.delete(`/api/keys/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+/** キーの名前を一覧の順に引く。ダイアログに並ぶ順と同じ。 */
+async function keyNames(request: APIRequestContext): Promise<string[]> {
+  const response = await request.get("/api/keys", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok()) throw new Error(`キーを引けません: ${response.status()}`);
+
+  const keys: { name: string }[] = await response.json();
+
+  return keys.map((it) => it.name);
+}
+
+/** バケットに権限を持つキーの名前を API から引く。 */
+async function permittedKeyNames(request: APIRequestContext, id: string): Promise<string[]> {
+  const response = await request.get(`/api/buckets/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok()) throw new Error(`バケットを引けません: ${response.status()}`);
+
+  const bucket: { keys?: { name: string }[] } = await response.json();
+
+  return (bucket.keys ?? []).map((it) => it.name);
+}
+
 test.describe("Buckets", () => {
   // BucketDetailScreen は縦に長く、既定のビューポートでは「バケットを削除」等が
   // 画面外に出る。wheel でキャンバス自体はスクロールできるが、そのたびに
@@ -201,6 +252,59 @@ test.describe("Buckets", () => {
       await expect(page.getByRole("button", { name: "別名を削除" })).toHaveCount(1);
     } finally {
       await deleteBucketById(request, id);
+    }
+  });
+
+  test("grants a key permission on a bucket and revokes all of it", async ({ page, request }) => {
+    const keyName = uniqueName("e2e-grant");
+    const bucketId = await createBucketWithoutAlias(request);
+    const keyId = await createKey(request, keyName);
+
+    try {
+      await openScreen(page, `/buckets/${bucketId}`, token);
+      await expect(
+        page.getByText("このバケットに権限を持つキーがありません。オブジェクトの操作にはキーが要ります"),
+      ).toBeVisible({ timeout: 30_000 });
+
+      // 付与（GrantKeyDialog）
+      await clickWhenReady(page.getByRole("button", { name: "キーに権限を付与" }));
+      // ダイアログが開き切るのを、ダイアログ固有の文言で待つ
+      await expect(page.getByText("バケットへのキーの権限付与")).toBeVisible();
+
+      // Compose の RadioButton と Checkbox は、名前を持たない button として
+      // ツリーに出る（radio / checkbox のロールにはならない）。ダイアログには
+      // 「キーの数だけのラジオ」「read / write / owner の 3 つ」がこの順に並ぶ。
+      // このバケットはまだ権限を持つキーが無いので、選べるキーは全件と一致する
+      const selectable = await keyNames(request);
+      const target = selectable.indexOf(keyName);
+      expect(target).toBeGreaterThanOrEqual(0);
+
+      await clickWhenReady(page.getByRole("button").nth(target));
+      // read だけを付ける
+      await clickWhenReady(page.getByRole("button").nth(selectable.length));
+
+      // 確定ボタンは権限が 1 つも選ばれていないと無効だが、Compose は無効状態を
+      // ツリーに出さないため押せてしまう。押しても何も起きなかった場合に備えて、
+      // サーバーに反映されるまで押し直す（付与は PUT なので何度押しても同じ）
+      await expect(async () => {
+        await page.getByRole("button", { name: "権限を付与", exact: true }).click({ force: true });
+        expect(await permittedKeyNames(request, bucketId)).toContain(keyName);
+      }).toPass({ timeout: 15_000 });
+
+      // 剥奪（ConfirmDialog）。ツリーを取り戻してから押す
+      await afterDialog(page);
+      await expect(page.getByText(keyName).first()).toBeVisible({ timeout: 30_000 });
+      await clickWhenReady(page.getByRole("button", { name: "権限を外す" }));
+      // 見出しとボタンに同じ語が入るため exact で取る
+      await expect(page.getByText("権限を外す", { exact: true })).toBeVisible();
+      await clickWhenReady(page.getByRole("button", { name: "実行", exact: true }));
+
+      await expect(async () => {
+        expect(await permittedKeyNames(request, bucketId)).not.toContain(keyName);
+      }).toPass({ timeout: 15_000 });
+    } finally {
+      await deleteKeyById(request, keyId);
+      await deleteBucketById(request, bucketId);
     }
   });
 
