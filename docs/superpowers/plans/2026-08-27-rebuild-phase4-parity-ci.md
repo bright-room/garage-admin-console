@@ -819,6 +819,47 @@ PR は 1 本にまとめる（stacked PR にしない）。
 
 ---
 
+## パリティ対応表
+
+旧 e2e は削除コミット `71ba945`（`chore: 旧実装を削除し dev 用 admin token の発行を追加`）の親にしか残っていない。**旧 UI が無いので復活させても通らない。** 以下は `git show 71ba945^:e2e/tests/<name>.spec.ts` で読んだ内容を、新 e2e の対応先に突き合わせた結果である。
+
+旧 e2e は 16 件あり、そのうち 13 件は「画面が描画されるか」「ボタンが見えるか」だけを見ている。**旧実装はサーバーが admin token を持っていたため、旧 e2e にログインの概念が無い**（`page.goto("/")` で即座に入場していた）。新 UI ではトークンを利用者が入力するため、この前提そのものが変わっている（spec §6.2）。
+
+### 旧 spec との対応（spec §10 のチェックリスト 6 件）
+
+| 旧 spec のテスト | 新 e2e の対応先 | 備考 |
+|---|---|---|
+| `navigation` / navigates to Cluster screen | `navigation.spec.ts` has cluster, maintenance and settings groups in the sidebar<br>`nodes.spec.ts` displays the cluster screen | 旧 Cluster と旧 Nodes は `/nodes` に統合（P3-12） |
+| `navigation` / navigates to Layout screen | `navigation.spec.ts` has cluster, maintenance and settings groups in the sidebar<br>`layout.spec.ts` displays the current layout | |
+| `navigation` / navigates to Buckets screen | `navigation.spec.ts` has a storage group in the sidebar and drills down from the overview | |
+| `navigation` / navigates to Keys screen | `navigation.spec.ts` has a storage group in the sidebar and drills down from the overview | |
+| `navigation` / navigates to Tokens screen | `navigation.spec.ts` has cluster, maintenance and settings groups in the sidebar<br>`tokens.spec.ts` lists tokens and marks the one in use | |
+| `navigation` / navigates to Nodes screen | `nodes.spec.ts` lists the dev node with its zone and version | 旧テストは Snapshot ボタンの可視性を見ていた。新 e2e は asks for confirmation before taking a metadata snapshot が同じ導線を押すところまで覆う |
+| `navigation` / navigates to Workers screen | `maintenance.spec.ts` lists workers with their state | |
+| `navigation` / navigates to Blocks screen | `maintenance.spec.ts` reports a healthy cluster with no block errors | |
+| `dashboard` / loads the app and shows sidebar | `navigation.spec.ts` shows the sidebar after signing in<br>`overview.spec.ts` shows cluster figures | 旧テストはサイドバーの項目の可視性のみ |
+| `cluster` / displays cluster nodes screen | `nodes.spec.ts` displays the cluster screen | |
+| `cluster` / shows connect node button | `nodes.spec.ts` offers a way to connect a node<br>`nodes.spec.ts` opens the connect dialog and accepts an address | 旧テストはボタンの可視性のみ。新 e2e はダイアログを開いて入力するところまで見る |
+| `layout` / displays cluster layout screen | `layout.spec.ts` displays the current layout | |
+| `layout` / shows assign node button | `layout.spec.ts` offers a way to stage a role | |
+| `buckets` / displays buckets screen | `buckets.spec.ts` creates, configures and deletes a bucket | 旧テストは「バケットを作成」ボタンの可視性のみ。新 e2e は作成から削除までを通す |
+| `keys` / displays access keys screen | `keys.spec.ts` creates a key, shows its secret once, then deletes it | |
+| `keys` / has create and import key buttons | 作成: `keys.spec.ts` creates a key, shows its secret once, then deletes it<br>インポート: **対応先が無い** | **旧 e2e に対して唯一の穴。** Task 4 が埋める |
+
+### spec §10 が「新規に追加するもの」として挙げた 5 件
+
+| §10 の項目 | 新 e2e の対応先 |
+|---|---|
+| ログイン（トークン入力 → 入場 → 401 で戻る） | `login.spec.ts` shows the login screen when no token is stored / rejects an invalid token / signs in with a valid token and survives a reload<br>`navigation.spec.ts` rejects api access with an invalid token as 401 |
+| 明示的なログアウト | `login.spec.ts` signs out and returns to the login screen |
+| scope 縮退 | `tokens.spec.ts`（Scope degradation）disables sidebar entries the token cannot use / shows a scope message when opening a screen directly / returns 403 with the operation name in the problem details<br>`objects.spec.ts` degrades only the object browser for a limited token |
+| オブジェクトブラウザ | `objects.spec.ts` uploads, lists, downloads and deletes an object / traverses into a folder and keeps the prefix in the url |
+| `ApplyClusterLayout` の preview 確認 | `layout.spec.ts` stages a change, previews it, then reverts / previews without changing anything |
+
+### 結論
+
+**旧 e2e に対する穴は「キーのインポート」1 件だけである**（Task 4 が埋める）。spec §10 の新規 5 件はすべて対応先を持つ。
+
 ## 自己レビューの結果
 
 **spec の網羅:** §10 のパリティチェックリスト 6 件は Task 1、e2e の追加は Task 2-6、覆わない範囲の明示は Task 7、CI の踏襲（§10 末尾）とパッケージング（§11 の Dockerfile）は Task 8 が受け持つ。§12 の 7「e2e の書き直しとパリティ確認」がこの計画の全体である。
