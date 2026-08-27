@@ -43,6 +43,51 @@ async function deleteObjectIfExists(
 }
 
 test.describe("Objects", () => {
+  test("degrades the object browser for a bucket with no global alias", async ({
+    page,
+    request,
+  }) => {
+    // global alias も local alias も持たないバケットは S3 API からアドレスできない
+    // （spec §6.5）。S3 縮退のもう 1 つの経路であり、no-usable-key とは理由が違う。
+    // キーが 1 つも権限を持たないと no-usable-key が先に出るため、read を与える
+    const created = await request.post("/api/buckets", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {},
+    });
+    expect(created.ok()).toBe(true);
+    const { id }: { id: string } = await created.json();
+
+    const key = await request.post("/api/keys", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { name: uniqueName("e2e-noalias") },
+    });
+    expect(key.ok()).toBe(true);
+    const { accessKeyId }: { accessKeyId: string } = await key.json();
+
+    try {
+      const granted = await request.put(`/api/buckets/${id}/keys/${accessKeyId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { permissions: { owner: false, read: true, write: false } },
+      });
+      expect(granted.ok()).toBe(true);
+
+      await openScreen(page, `/objects/${id}`, token);
+      await expect(
+        page.getByText(
+          "このバケットには別名が無いため、S3 API から参照できません。" +
+            "バケットの設定でグローバル別名を追加してください",
+        ),
+      ).toBeVisible({ timeout: 30_000 });
+    } finally {
+      await request.delete(`/api/keys/${accessKeyId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await request.delete(`/api/buckets/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+  });
+
   // buckets / keys と違い、既定のビューポートのままでよい。絞り込みで表示行数を
   // 1 に落とせるため、操作対象のボタンが画面外に出ることが無い
   test("uploads, lists, downloads and deletes an object", async ({ page, request }) => {

@@ -819,6 +819,149 @@ PR は 1 本にまとめる（stacked PR にしない）。
 
 ---
 
+## パリティ対応表
+
+旧 e2e は削除コミット `71ba945`（`chore: 旧実装を削除し dev 用 admin token の発行を追加`）の親にしか残っていない。**旧 UI が無いので復活させても通らない。** 以下は `git show 71ba945^:e2e/tests/<name>.spec.ts` で読んだ内容を、新 e2e の対応先に突き合わせた結果である。
+
+旧 e2e は 16 件あり、そのうち 13 件は「画面が描画されるか」「ボタンが見えるか」だけを見ている。**旧実装はサーバーが admin token を持っていたため、旧 e2e にログインの概念が無い**（`page.goto("/")` で即座に入場していた）。新 UI ではトークンを利用者が入力するため、この前提そのものが変わっている（spec §6.2）。
+
+### 旧 spec との対応（spec §10 のチェックリスト 6 件）
+
+| 旧 spec のテスト | 新 e2e の対応先 | 備考 |
+|---|---|---|
+| `navigation` / navigates to Cluster screen | `navigation.spec.ts` has cluster, maintenance and settings groups in the sidebar<br>`nodes.spec.ts` displays the cluster screen | 旧 Cluster と旧 Nodes は `/nodes` に統合（P3-12） |
+| `navigation` / navigates to Layout screen | `navigation.spec.ts` has cluster, maintenance and settings groups in the sidebar<br>`layout.spec.ts` displays the current layout | |
+| `navigation` / navigates to Buckets screen | `navigation.spec.ts` has a storage group in the sidebar and drills down from the overview | |
+| `navigation` / navigates to Keys screen | `navigation.spec.ts` has a storage group in the sidebar and drills down from the overview | |
+| `navigation` / navigates to Tokens screen | `navigation.spec.ts` has cluster, maintenance and settings groups in the sidebar<br>`tokens.spec.ts` lists tokens and marks the one in use | |
+| `navigation` / navigates to Nodes screen | `nodes.spec.ts` lists the dev node with its zone and version | 旧テストは Snapshot ボタンの可視性を見ていた。新 e2e は asks for confirmation before taking a metadata snapshot が同じ導線を押すところまで覆う |
+| `navigation` / navigates to Workers screen | `maintenance.spec.ts` lists workers with their state | |
+| `navigation` / navigates to Blocks screen | `maintenance.spec.ts` reports a healthy cluster with no block errors | |
+| `dashboard` / loads the app and shows sidebar | `navigation.spec.ts` shows the sidebar after signing in<br>`overview.spec.ts` shows cluster figures | 旧テストはサイドバーの項目の可視性のみ |
+| `cluster` / displays cluster nodes screen | `nodes.spec.ts` displays the cluster screen | |
+| `cluster` / shows connect node button | `nodes.spec.ts` offers a way to connect a node<br>`nodes.spec.ts` opens the connect dialog and accepts an address | 旧テストはボタンの可視性のみ。新 e2e はダイアログを開いて入力するところまで見る |
+| `layout` / displays cluster layout screen | `layout.spec.ts` displays the current layout | |
+| `layout` / shows assign node button | `layout.spec.ts` offers a way to stage a role | |
+| `buckets` / displays buckets screen | `buckets.spec.ts` creates, configures and deletes a bucket | 旧テストは「バケットを作成」ボタンの可視性のみ。新 e2e は作成から削除までを通す |
+| `keys` / displays access keys screen | `keys.spec.ts` creates a key, shows its secret once, then deletes it | |
+| `keys` / has create and import key buttons | 作成: `keys.spec.ts` creates a key, shows its secret once, then deletes it<br>インポート: **対応先が無い** | **旧 e2e に対して唯一の穴。** Task 4 が埋める |
+
+### spec §10 が「新規に追加するもの」として挙げた 5 件
+
+| §10 の項目 | 新 e2e の対応先 |
+|---|---|
+| ログイン（トークン入力 → 入場 → 401 で戻る） | `login.spec.ts` shows the login screen when no token is stored / rejects an invalid token / signs in with a valid token and survives a reload<br>`navigation.spec.ts` rejects api access with an invalid token as 401 |
+| 明示的なログアウト | `login.spec.ts` signs out and returns to the login screen |
+| scope 縮退 | `tokens.spec.ts`（Scope degradation）disables sidebar entries the token cannot use / shows a scope message when opening a screen directly / returns 403 with the operation name in the problem details<br>`objects.spec.ts` degrades only the object browser for a limited token |
+| オブジェクトブラウザ | `objects.spec.ts` uploads, lists, downloads and deletes an object / traverses into a folder and keeps the prefix in the url |
+| `ApplyClusterLayout` の preview 確認 | `layout.spec.ts` stages a change, previews it, then reverts / previews without changing anything |
+
+### 結論
+
+**旧 e2e に対する穴は「キーのインポート」1 件だけである**（Task 4 が埋める）。spec §10 の新規 5 件はすべて対応先を持つ。
+
+## e2e で覆わないもの
+
+**複数ノードのテスト環境は用意しない**（Phase 4 の決定）。次の 5 項目は単一ノードの dev では状態を作れないが、いずれもサーバーの単体テスト（`ktor-client-mock`）と `:shared` の直列化テストが覆っている。3 ノードの compose は layout の適用と同期待ちを CI に持ち込み、実行時間と不安定さを増やすため、割に合わない。
+
+| 覆っていない状態 | 代わりに覆っているもの | e2e に入れない理由 |
+|---|---|---|
+| `ConnectClusterNodes` の成功 | `ClusterRoutesTest.connectsNodesAndPairsResultsWithRequestOrder`（成功と失敗が要求と同じ順に並ぶこと）<br>`ClusterRoutesTest.rejectsEmptyConnectRequest` | 接続先のノードが無い。e2e（`nodes.spec.ts` reports a connection failure over the api）は失敗側を見ている |
+| `ClusterLayoutSkipDeadNodes` | `LayoutRoutesTest.skipsDeadNodes` | 死んだノードを作れない。e2e（`nodes.spec.ts` does not offer skipping dead nodes when every node is up）はボタンが出ないことを見ている |
+| 非空の `ListBlockErrors` と `GetBlockInfo` / `RetryBlockResync` / `PurgeBlocks` の成功系 | `BlockRoutesTest.listsBlockErrors` / `getsBlockInfo` / `retriesSingleBlock` / `retriesEverything` / `purgesBlocksWithTopLevelArrayBody` | ブロックエラーを人為的に作れない。e2e は画面と確認ダイアログまでを見る |
+| `MultiResponse.error` が非空になる経路 | `NodeRoutesTest.keepsPerNodeFailures`<br>`NodeRoutesTest.createsMetadataSnapshotAndReportsPerNodeOutcome` | ノードが 1 台なので、落ちれば全体が落ちる |
+| ワーカーの `busy` / `done` / `throttled` | `OneOfSerializersTest.decodesWorkerStateStrings` / `decodesThrottledWorkerState` / `roundTripsEveryWorkerStateShape` / `decodesWorkerInfoWithLastError` | dev のワーカーは idle のまま。状態を作れない |
+
+### 単一ノードとは別の理由で e2e に入れられないもの
+
+| 項目 | 理由 | 代わりに覆っているもの |
+|---|---|---|
+| 未完了アップロードが実際に削除されるところ | 後始末は 24 時間より古いものだけを消す（P2-9）。テストの中で作ったアップロードは必ず新しい | `buckets.spec.ts` asks for confirmation before cleaning up unfinished uploads（導線）と reports the number of cleaned up uploads over the api（API の応答） |
+| ダイアログを跨いだ後の画面の状態 | Compose のツリーはダイアログを閉じると空になり、`page.reload()` でしか戻らないが、リロードは画面の状態を消す（P3-17） | 該当するのは Admin token の一度きりの secret 表示とノード接続の結果。どちらも API のテストが覆う |
+
+## 実施中に判明した Garage と Compose の事実
+
+Phase 4 のテストを書く中で分かったもの。**いずれも実装の不具合ではなく、テストの書き方を縛る制約である。**
+
+- **Garage は最後の 1 つの別名を外させない。** `RemoveBucketAlias` は `Bucket ... doesn't have other aliases, please delete it instead of just unaliasing.` を返す。別名の増減を見るテストは 1 つの状態から始めること
+- **Garage は削除したキーの ID を再利用させない。** `ImportKey` が `KeyAlreadyExists ... Even if it is deleted` を返す。インポートのテストは新規に生成した資格情報を使う
+- **`bucket-not-addressable` は `no-usable-key` の後ろにある。** 権限を持つキーが 1 つも無ければ先に `no-usable-key` が出る。アドレス不能を見るには、read 以上を持つキーがあり、かつ global alias も local alias も無い状態を作る
+- **Compose の `RadioButton` と `Checkbox` は、名前を持たない `button` としてツリーに出る。** `radio` / `checkbox` のロールにはならないため、位置で押すしかない
+- **`fill` は既存の値を置き換えず、カーソル位置に挿し込む。** 挿し込まれるのは前にも後ろにもなるため、変更後の値を決め打ちにはできない
+- **Compose は IME 用の隠し `<input>` を DOM の末尾に置く。** 画面に描かれる入力欄は `<input>` ではないが、この隠し `<input>` には編集中の値が入り、`toHaveValue` で読める。打ち込みが状態に取り込まれたことを待つ手として使える
+
+## CI の判定（2026-08-27）
+
+**ワークフローは変更しない。** 判定は次の 3 件。
+
+**e2e が `on-merge` に無い（PR にしか無い）→ 現状維持。**
+PR がゲートになっており、main への直接 push は無い。マージ後にもう一度 e2e を回しても、同じコミットに対する同じ検証を繰り返すだけになる。
+
+**Dockerfile が CI でも compose でもビルドされていない → CI には足さない。**
+`.github/workflows/` にも `compose.yaml` / `compose.ci.yaml` にも `docker build` は無く、イメージを publish する仕組みも無い（`ghcr` への push は 0 件）。CI に足すと毎 PR に gradle のフルビルドがもう 1 本乗るため、割に合わない。**手元で 1 回ビルドが通ることだけを確認した**（結果は下の完了判定に記す）。イメージを配る計画が立った時点で、改めて CI に載せるかを判断すればよい。
+
+**e2e ジョブの `timeout-minutes: 20` → 現状維持。**
+PR #93 の実測（`gh run view 32850737153`）で、e2e ジョブは 13:03:49 → 13:06:20 の 2 分半、build ジョブは 3 分 44 秒。件数が 58 から 64 に増えても枠は十分に余る。
+
+### 実測で分かったこと: CI も並行実行である
+
+`playwright.config.ts` は `workers` を指定していない。PR #93 の CI ログには `Running 58 tests using 2 workers` とあり、**CI でも 2 並列で走っている**（ローカルは 16 コアで 8 並列）。`fullyParallel: false` は spec ファイル内の直列化しか意味しないため、**spec ファイルをまたいだ競合は CI でも起きる**。
+
+Phase 4 で足したテストのうち 2 件が、この並行実行の下で落ちた。どちらも同じ性質の原因である。
+
+- `force` を付けた `fill` は actionability を待たない。3 つの入力欄に続けて打つと、落ちた欄があっても気づけないまま確定に進み、確定ボタンが無効のまま止まる。**1 つ入れるごとに反映を待つこと**
+- ダイアログ固有の文言が見えても、背景のボタンがツリーに残っていることがある。位置で押す操作は、**ボタンの数がダイアログの分だけになるのを待ってから**行うこと
+
+CI は `retries: 2` を持つため、この種の不安定さは緑に見えてしまう（P3-16 が同じ懸念を書いている）。ローカルは `retries: 0` のまま、既定の並列度で連続 2 回通ることを完了の条件とした。
+
+## Phase 4 の完了判定の根拠（2026-08-27）
+
+**根拠が「このセッションで確かめたもの」か「以前の確認を引いたもの」かを区別して書く。**
+
+**パリティ**
+
+- 旧 e2e 16 件すべてに新 e2e の対応先があることを、削除コミット `71ba945^` から読んで突き合わせた（このセッション。「パリティ対応表」の節）
+- 唯一の穴だった「キーのインポート」は `keys.spec.ts` imports a key and renames it が埋めた（このセッション）
+- spec §10 の「新規に追加するもの」5 件は、すべて Phase 1-3 の e2e に対応先がある（このセッション。対応表の 2 つ目）
+
+**Phase 2 が残した未カバーの 5 項目**
+
+| 項目 | 結末 |
+|---|---|
+| バケットの別名の追加・削除 | `buckets.spec.ts` adds and removes a global alias |
+| キー権限の付与・全剥奪 | `buckets.spec.ts` grants a key permission on a bucket and revokes all of it |
+| キーのインポートと更新 | `keys.spec.ts` imports a key and renames it |
+| 未完了アップロードの後始末 | 導線と API の応答まで（`buckets.spec.ts` の 2 件）。**実際に削除される経路は作れない**（24 時間の下限。P2-9） |
+| S3 縮退の 2 経路 | `no-usable-key` は `objects.spec.ts` degrades only the object browser for a limited token が既に覆っていた（Phase 2）。`bucket-not-addressable` は degrades the object browser for a bucket with no global alias が埋めた |
+
+**覆わないと決めたもの**
+
+- 単一ノードでは作れない 5 項目は、複数ノードの環境を用意せずに閉じた。代替の担保先は「e2e で覆わないもの」の節に書いた（担保先の存在はこのセッションで確認した）
+
+**テスト**
+
+- e2e 64 件が **既定の並列度（ローカル 8 workers、`retries: 0`）で連続 2 回成功**（このセッション）
+- 途中 2 件が並行実行の下で落ちた。原因と対処は「CI の判定」の節に書いた。**CI も 2 workers で並行実行しており、同じ競合は CI でも起こりうる**（PR #93 のログで実測）
+- `./gradlew build --rerun-tasks` BUILD SUCCESSFUL、75 タスクすべて実行（このセッション）。**Phase 4 は Kotlin を 1 行も変えていないため、`--rerun-tasks` を付けないとテストが up-to-date で飛ぶ。** ローカルは `CHROME_BIN` が要る（`:shared:wasmJsBrowserTest`）
+- **Dockerfile のビルドが通ることを確認した**（このセッション。`docker build` が exit 0、イメージが生成された）。確認後にイメージは削除した
+
+**テスト環境の代用**
+
+- この dev Garage（別ワークツリーのスタック）は `dev-restricted` を持たず、`dev-limited` の secret も取れない。**Phase 3 と同じく、`init-garage.sh` と同じ scope の一時トークン（`e2e-temp-limited` / `e2e-temp-restricted`）を作って代用した。** CI は毎回初期化するため影響しない
+- 一時トークンは実行後に削除した（下記「後始末」）
+
+**後始末**
+
+- テストが作ったバケット・キーが残っていないことを API で確認した
+- 一時トークン `e2e-temp-limited` / `e2e-temp-restricted` を削除した
+- 起動していたコンソールは停止した。**dev Garage（別ワークツリーのスタック）は触っていない**
+
+## 今後に引き継ぐこと
+
+再構築は Phase 4 で完了する。Phase 5 は無い。
+
+Compose と Playwright の噛み合わせに関する既知の罠は、`docs/superpowers/plans/2026-08-24-rebuild-phase3-cluster.md` 末尾の「Phase 3 が残した技術的な事実」と、この計画の「実施中に判明した Garage と Compose の事実」に集約されている。**e2e を足すときは先にその 2 つを読むこと。**
+
 ## 自己レビューの結果
 
 **spec の網羅:** §10 のパリティチェックリスト 6 件は Task 1、e2e の追加は Task 2-6、覆わない範囲の明示は Task 7、CI の踏襲（§10 末尾）とパッケージング（§11 の Dockerfile）は Task 8 が受け持つ。§12 の 7「e2e の書き直しとパリティ確認」がこの計画の全体である。
