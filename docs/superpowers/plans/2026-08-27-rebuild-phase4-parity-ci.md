@@ -860,6 +860,36 @@ PR は 1 本にまとめる（stacked PR にしない）。
 
 **旧 e2e に対する穴は「キーのインポート」1 件だけである**（Task 4 が埋める）。spec §10 の新規 5 件はすべて対応先を持つ。
 
+## e2e で覆わないもの
+
+**複数ノードのテスト環境は用意しない**（Phase 4 の決定）。次の 5 項目は単一ノードの dev では状態を作れないが、いずれもサーバーの単体テスト（`ktor-client-mock`）と `:shared` の直列化テストが覆っている。3 ノードの compose は layout の適用と同期待ちを CI に持ち込み、実行時間と不安定さを増やすため、割に合わない。
+
+| 覆っていない状態 | 代わりに覆っているもの | e2e に入れない理由 |
+|---|---|---|
+| `ConnectClusterNodes` の成功 | `ClusterRoutesTest.connectsNodesAndPairsResultsWithRequestOrder`（成功と失敗が要求と同じ順に並ぶこと）<br>`ClusterRoutesTest.rejectsEmptyConnectRequest` | 接続先のノードが無い。e2e（`nodes.spec.ts` reports a connection failure over the api）は失敗側を見ている |
+| `ClusterLayoutSkipDeadNodes` | `LayoutRoutesTest.skipsDeadNodes` | 死んだノードを作れない。e2e（`nodes.spec.ts` does not offer skipping dead nodes when every node is up）はボタンが出ないことを見ている |
+| 非空の `ListBlockErrors` と `GetBlockInfo` / `RetryBlockResync` / `PurgeBlocks` の成功系 | `BlockRoutesTest.listsBlockErrors` / `getsBlockInfo` / `retriesSingleBlock` / `retriesEverything` / `purgesBlocksWithTopLevelArrayBody` | ブロックエラーを人為的に作れない。e2e は画面と確認ダイアログまでを見る |
+| `MultiResponse.error` が非空になる経路 | `NodeRoutesTest.keepsPerNodeFailures`<br>`NodeRoutesTest.createsMetadataSnapshotAndReportsPerNodeOutcome` | ノードが 1 台なので、落ちれば全体が落ちる |
+| ワーカーの `busy` / `done` / `throttled` | `OneOfSerializersTest.decodesWorkerStateStrings` / `decodesThrottledWorkerState` / `roundTripsEveryWorkerStateShape` / `decodesWorkerInfoWithLastError` | dev のワーカーは idle のまま。状態を作れない |
+
+### 単一ノードとは別の理由で e2e に入れられないもの
+
+| 項目 | 理由 | 代わりに覆っているもの |
+|---|---|---|
+| 未完了アップロードが実際に削除されるところ | 後始末は 24 時間より古いものだけを消す（P2-9）。テストの中で作ったアップロードは必ず新しい | `buckets.spec.ts` asks for confirmation before cleaning up unfinished uploads（導線）と reports the number of cleaned up uploads over the api（API の応答） |
+| ダイアログを跨いだ後の画面の状態 | Compose のツリーはダイアログを閉じると空になり、`page.reload()` でしか戻らないが、リロードは画面の状態を消す（P3-17） | 該当するのは Admin token の一度きりの secret 表示とノード接続の結果。どちらも API のテストが覆う |
+
+## 実施中に判明した Garage と Compose の事実
+
+Phase 4 のテストを書く中で分かったもの。**いずれも実装の不具合ではなく、テストの書き方を縛る制約である。**
+
+- **Garage は最後の 1 つの別名を外させない。** `RemoveBucketAlias` は `Bucket ... doesn't have other aliases, please delete it instead of just unaliasing.` を返す。別名の増減を見るテストは 1 つの状態から始めること
+- **Garage は削除したキーの ID を再利用させない。** `ImportKey` が `KeyAlreadyExists ... Even if it is deleted` を返す。インポートのテストは新規に生成した資格情報を使う
+- **`bucket-not-addressable` は `no-usable-key` の後ろにある。** 権限を持つキーが 1 つも無ければ先に `no-usable-key` が出る。アドレス不能を見るには、read 以上を持つキーがあり、かつ global alias も local alias も無い状態を作る
+- **Compose の `RadioButton` と `Checkbox` は、名前を持たない `button` としてツリーに出る。** `radio` / `checkbox` のロールにはならないため、位置で押すしかない
+- **`fill` は既存の値を置き換えず、カーソル位置に挿し込む。** 挿し込まれるのは前にも後ろにもなるため、変更後の値を決め打ちにはできない
+- **Compose は IME 用の隠し `<input>` を DOM の末尾に置く。** 画面に描かれる入力欄は `<input>` ではないが、この隠し `<input>` には編集中の値が入り、`toHaveValue` で読める。打ち込みが状態に取り込まれたことを待つ手として使える
+
 ## 自己レビューの結果
 
 **spec の網羅:** §10 のパリティチェックリスト 6 件は Task 1、e2e の追加は Task 2-6、覆わない範囲の明示は Task 7、CI の踏襲（§10 末尾）とパッケージング（§11 の Dockerfile）は Task 8 が受け持つ。§12 の 7「e2e の書き直しとパリティ確認」がこの計画の全体である。
