@@ -293,6 +293,11 @@ test.describe("Buckets", () => {
         await clickWhenReady(page.getByRole("button", { name: "キーに権限を付与" }));
         // ダイアログが開き切るのを、ダイアログ固有の文言で待つ
         await expect(page.getByText("バケットへのキーの権限付与")).toBeVisible();
+        // 文言が出てもなお背景のボタンがツリーに残っていることがある。
+        // 位置で押すため、ボタンがダイアログの分だけになるまで待つ
+        // （キーの数 + read / write / owner + キャンセル + 権限を付与）。
+        // 引いた一覧がダイアログの中身とずれていれば数も合わず、やり直しになる
+        await expect(page.getByRole("button")).toHaveCount(selectable.length + 5);
 
         await clickWhenReady(page.getByRole("button").nth(target));
         // read だけを付ける
