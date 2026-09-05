@@ -1,4 +1,4 @@
-FROM gradle:8-jdk21 AS build
+FROM gradle:8-jdk21@sha256:94452354d9218922457d82e85a343391bab351e7f518f6f5ab1db996967d238b AS build
 RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . .
