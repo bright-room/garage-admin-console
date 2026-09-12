@@ -20,7 +20,7 @@ runs:
 
     - name: Resolve Chrome for wasmJs browser tests
       shell: bash
-      run: |
+      run: |  # zizmor: ignore[github-env] 書き込む値は command -v の結果で外部入力ではない
         CHROME=$(command -v google-chrome || command -v google-chrome-stable || true)
         if [ -z "$CHROME" ]; then
           echo "google-chrome not found on this runner" >&2

@@ -1,0 +1,8 @@
+# gitleaks の誤検知を除外する。実在のシークレットではないもののみを列挙すること。
+
+# docker/garage.toml の rpc_secret は、ローカル開発用 compose が使うダミー値
+# (0123456789abcdef... の繰り返し)。本番の値ではない。
+304dfbf27ee9512ed0ac877d681cdca54b71d9ff:docker/garage.toml:generic-api-key:9
+
+# ドキュメント中の手順例に含まれる "Bearer dev-admin-token"。実在のトークンではない。
+41c25d73c885482566b905f3d612e38e3fd7ef47:docs/superpowers/plans/2026-08-23-rebuild-phase1-foundation.md:curl-auth-header:190
