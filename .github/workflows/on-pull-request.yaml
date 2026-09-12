@@ -16,13 +16,20 @@ jobs:
     permissions:
       contents: read
     steps:
+      # サプライチェーン攻撃の検知に向けた計測(analyze モード)。
+      # syscall を capture して falco-analyze ジョブで通信先・プロセスを可視化する。
+      # 検知しても fail させない。
+      - name: Start Falco
+        uses: falcosecurity/falco-actions/start@558a3ceeee9403e1c875ffbeb704c34c93e24752 # main(タグ未発行のため commit を固定)
+        with:
+          mode: analyze
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Check and Build
-        uses: ./.github/actions/gradle-action
+        uses: ./.github/actions/gradle-action # zizmor: ignore[self-repository] $/ 記法は actionlint が未対応
         with:
           command: spotlessCheck server:check shared:check server:buildFatJar
 
@@ -32,6 +39,11 @@ jobs:
           name: fat-jar
           path: server/build/libs/garage-admin-console-all.jar
           retention-days: 1
+      - name: Stop Falco
+        if: always()
+        uses: falcosecurity/falco-actions/stop@558a3ceeee9403e1c875ffbeb704c34c93e24752 # main(タグ未発行のため commit を固定)
+        with:
+          mode: analyze
 
   e2e:
     needs: build
@@ -146,3 +158,22 @@ jobs:
       - name: Stop services
         if: always()
         run: docker compose -f compose.ci.yaml down -v
+
+  # capture を解析して、ジョブ中の通信先 / DNS / プロセスをジョブサマリに出す。
+  # 収集が目的のため、検知があっても fail させない。
+  falco-analyze:
+    needs: [build]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # 計測が目的のジョブなので、capture が無い等で失敗しても CI をブロックしない
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Analyze
+        uses: falcosecurity/falco-actions/analyze@558a3ceeee9403e1c875ffbeb704c34c93e24752 # main(タグ未発行のため commit を固定)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
